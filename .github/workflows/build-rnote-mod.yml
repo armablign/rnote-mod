@@ -1,0 +1,94 @@
+---
+# rnote-mod: manual Windows installer build.
+# Adapted from upstream release-windows.yml. Differences:
+#   - only runs when started by hand (Actions tab -> "Build Rnote-Mod" -> Run workflow)
+#   - installer is named rnote-mod_<label> (label typed in when starting the run)
+#   - no GitHub-release upload step; the installer is a downloadable run artifact (kept 14 days)
+
+name: Build Rnote-Mod
+
+"on":
+  workflow_dispatch:
+    inputs:
+      version_label:
+        description: "Build label used in the installer file name, e.g. v1-0"
+        required: true
+        default: "v1-0"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2025
+    timeout-minutes: 150
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - name: Install Inno 6
+        id: install_inno
+        shell: pwsh
+        run: |
+          if (Test-Path "C:\Program Files (x86)\Inno Setup 6\") {
+            echo "inno already installed"
+          } else {
+            winget install -e --id JRSoftware.InnoSetup -v 6.4.3 --accept-package-agreements `
+              --accept-source-agreements --disable-interactivity --scope machine
+            if (Test-Path "C:\Program Files (x86)\Inno Setup 6\") {
+              echo "inno installed successfully"
+            } else {
+              throw "could not find inno's installation folder"
+            }
+          }
+
+      - name: Set installer name
+        id: set_installer_name
+        shell: bash
+        env:
+          VERSION_LABEL: ${{ inputs.version_label }}
+        run: |
+          label=$(echo "$VERSION_LABEL" | sed -e 's/[^A-Za-z0-9._-]/_/g')
+          echo "name=rnote-mod_${label}" >> $GITHUB_OUTPUT
+
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          release: false
+          update: true
+          install: |
+            mingw-w64-x86_64-binutils
+
+      - name: Install rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable-gnu
+
+      - name: Configure PATH
+        run: echo "export PATH=$PATH:/c/Users/$USER/.cargo/bin:/c/Program\ Files\ \(x86\)/Inno\ Setup\ 6" > ~/.bashrc
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prerequisites
+        run: |
+          cargo install --locked just
+          just ci=true prerequisites-win
+
+      - name: Setup
+        run: just ci=true setup-win-installer '${{ steps.set_installer_name.outputs.name }}'
+
+      - name: Build
+        run: just ci=true build
+
+      - name: Build installer
+        run: just ci=true build-win-installer
+
+      - name: Upload installer (workflow artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.set_installer_name.outputs.name }}
+          path: _mesonbuild/${{ steps.set_installer_name.outputs.name }}.exe
+          retention-days: 14
+          if-no-files-found: error

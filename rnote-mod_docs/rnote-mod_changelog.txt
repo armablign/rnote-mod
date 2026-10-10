@@ -1,0 +1,77 @@
+=====================================================================
+ rnote-mod  -  CHANGELOG
+ Based on: Rnote 0.14.2 (upstream, GPL-3.0-or-later)
+ Naming:   rnote-mod_vMAJOR-MINOR   (e.g. rnote-mod_v1-0)
+ Newest build at the top.
+=====================================================================
+
+
+---------------------------------------------------------------------
+ rnote-mod_v1-0        STATUS: SOURCE READY - not yet built/tested
+---------------------------------------------------------------------
+ Purpose: safe side-by-side baseline + test of the GitHub build route.
+ NO new features in this build. Behaves like upstream Rnote 0.14.2.
+
+ Changes:
+  1. meson.build
+       App ID com.github.flxzt.rnote -> local.rnotemod
+       (settings schema ID, application ID, icon/desktop file names)
+  2. meson.build + crates/rnote-ui/data/meson.build
+       New settings_path /local/rnotemod/ used for the settings schema
+       (where Windows stores settings), so Rnote-Mod settings are fully
+       separate from the original Rnote. The UI resource path
+       (app_idpath) is intentionally UNCHANGED - it is hardcoded in
+       ~30 places and renaming it would break the UI.
+  3. build-aux/rnote_inno.iss.in (installer)
+       - New permanent installer ID (AppId GUID 25BF6B11-31B5-4B78-B247-E59637F621FA).
+         Same for every rnote-mod build, so each new build upgrades the
+         previous Rnote-Mod install in place. Do not change it.
+       - App name "Rnote-Mod": install folder, Start menu entry,
+         desktop shortcut, uninstall entry
+       - Version label shown in Windows "Installed apps": "v1-0"
+         (ModVersion define - bump every build)
+       - Own file-association key "RnoteModFile.rnote": adds Rnote-Mod
+         to the "Open with" list for .rnote files, does NOT take over
+         the default program
+       - Removed the registry write to Applications\rnote.exe that the
+         original installer also uses
+  4. .github/workflows
+       Removed all upstream workflows (CI, nightly, release, etc.).
+       Added build-rnote-mod.yml: manual trigger only, produces
+       rnote-mod_<label>.exe as a downloadable run artifact (kept 14 days).
+       Build steps are identical to upstream's Windows release workflow.
+  5. Added rnote-mod_docs/ (this changelog + project map)
+
+ Deliberately NOT changed:
+  - Executable name stays rnote.exe (so your AutoHotkey rules for
+    ahk_exe rnote.exe keep working; note they apply to BOTH installs)
+  - Icons, UI resources, .rnote file format, engine code
+
+ Known risks (untested - source could not be compiled in the sandbox):
+  - justfile "prerequisites-win" downloads pinned MSYS2 packages
+    (gtk4 4.18.6, cairo 1.18.4, ...). If MSYS2 has removed them the
+    "Prerequisites" step fails with a download error.
+  - First-run build time unknown (estimate 30-60+ min).
+
+ Install folder:  C:\Program Files\Rnote-Mod
+ Installer file:  rnote-mod_v1-0.exe
+
+
+---------------------------------------------------------------------
+ PLANNED (not decided / not started)
+---------------------------------------------------------------------
+ rnote-mod_v1-1   Feature 1: Ctrl+5 repeat cycles the 4 selector modes
+                  (Polygon -> Rectangle -> Single -> Intersecting Path -> wrap)
+                  Feature 3: hardcoded plain-key tool shortcuts
+                  G -> Shaper (Ctrl+2), T -> Selector (Ctrl+5),
+                  E -> Eraser (Ctrl+4), Q -> Brush (Ctrl+1)
+                  (inactive while typing text in the Typewriter tool)
+                  Optional: undo history cap 100 -> ~30 (awaiting your OK)
+ rnote-mod_v1-2   Feature 2: colour-palette pie menu on Space
+ later            Feature 4 (RAM/lag): after Task Manager measurements
+
+
+---------------------------------------------------------------------
+ BASELINE  -  upstream Rnote 0.14.2 (unmodified)
+---------------------------------------------------------------------
+ Source analysed. No modifications made.
