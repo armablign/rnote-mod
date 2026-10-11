@@ -99,6 +99,21 @@ impl RnSelectorPage {
         }
     }
 
+    /// rnote-mod: activate the next selector style, wrapping around after the last one.
+    ///
+    /// The order matches the toggle buttons in the sidebar:
+    /// Polygon -> Rectangle -> Single -> IntersectingPath -> Polygon.
+    /// Setting the toggle also updates the engine config through its `connect_toggled` handler.
+    pub(crate) fn cycle_selector_style(&self) {
+        let next = match self.selector_style() {
+            Some(SelectorStyle::Polygon) => SelectorStyle::Rectangle,
+            Some(SelectorStyle::Rectangle) => SelectorStyle::Single,
+            Some(SelectorStyle::Single) => SelectorStyle::IntersectingPath,
+            Some(SelectorStyle::IntersectingPath) | None => SelectorStyle::Polygon,
+        };
+        self.set_selector_style(next);
+    }
+
     pub(crate) fn init(&self, appwindow: &RnAppWindow) {
         let imp = self.imp();
 

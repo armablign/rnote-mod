@@ -335,6 +335,14 @@ impl RnAppWindow {
                     let mut widget_flags = canvas.engine_mut().change_pen_style(pen_style);
                     widget_flags |= canvas.engine_mut().change_pen_style_override(None);
                     appwindow.handle_widget_flags(widget_flags, &canvas);
+                } else if pen_style == PenStyle::Selector {
+                    // rnote-mod: the selector shortcut was pressed while the selector is already
+                    // active -> cycle to the next selector style (wraps around after the last).
+                    appwindow
+                        .overlays()
+                        .penssidebar()
+                        .selector_page()
+                        .cycle_selector_style();
                 }
                 action.set_state(&pen_style_str.to_variant());
             }

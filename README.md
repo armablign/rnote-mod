@@ -8,7 +8,7 @@ through its chat interface (Claude Sonnet 5.5 at the time of writing; later buil
 **What the AI did:** Claude analysed the upstream Rnote source code and wrote the modifications in this repository:
 the changes to the code, installer and build scripts, the GitHub Actions workflow, and the documentation, including this README (With Amendments).
 I thought of the features I wanted, and sometimes the problem solution avenues that could be taken/approaches to how certain features should be implemented and in what capacity. 
-I run the builds, test the results and report problems back 
+I run the builds, test the results and report problems back. 
 I did not write the Rust code myself.
 Claude cannot compile or run the app, so every build is only as well tested as I have managed to test it myself.
 The unmodified upstream Rnote code was written by its own authors (see "License and credits" below).
@@ -41,6 +41,8 @@ That file is the source of truth for what each build contains; this README does 
 
 It is **not** meant as a general, user-customisable replacement for Rnote.
 
+Modified from Rnote 0.14.2 starting 2026-10-10. Each change, with its date, is listed in the changelog.
+
 ## Installs next to the original Rnote
 
 Rnote-Mod uses its own installer ID, install folder (`Rnote-Mod`), application ID and settings location,
@@ -51,8 +53,8 @@ It does not take over `.rnote` files as the default program; it only appears und
 
 ## Versions and naming
 
-Builds are named `rnote-mod_vMAJOR-MINOR-PATCH` (for example `rnote-mod_v1-0-1`).
-The version label is shown in Windows' installed apps list.
+Feature builds are named `rnote-mod_vMAJOR-MINOR` (for example `rnote-mod_v1-1`); small fixes add a third number
+(for example `rnote-mod_v1-0-1`). The version label is shown in Windows' installed apps list.
 
 ## Building (Windows installer)
 

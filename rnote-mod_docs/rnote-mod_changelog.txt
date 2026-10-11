@@ -1,16 +1,79 @@
 =====================================================================
  rnote-mod  -  CHANGELOG
  Based on: Rnote 0.14.2 (upstream, GPL-3.0-or-later)
- Naming:   rnote-mod_vMAJOR-MINOR   (e.g. rnote-mod_v1-0)
- Newest build at the top.
+ Naming:   rnote-mod_vMAJOR-MINOR      feature builds (e.g. v1-1)
+           rnote-mod_vMAJOR-MINOR-PATCH  small fixes (e.g. v1-0-1)
+ Newest build at the top. Dates are the date the build's source was prepared.
 =====================================================================
 
 
 ---------------------------------------------------------------------
- rnote-mod_v1-0        STATUS: SOURCE READY (rev 2) - no successful build yet
+ rnote-mod_v1-1        2026-10-11
+ STATUS: SOURCE READY - type-checked in the sandbox, NOT yet tried in the app
+---------------------------------------------------------------------
+ FEATURE 1: selector mode cycling with wrap-around.
+
+ Behaviour:
+  While the Selector tool is active, pressing its shortcut again
+  (Ctrl+5 or Ctrl+Numpad 5) switches to the next selector mode, in the
+  order of the sidebar buttons:
+     Polygon -> Rectangle -> Single -> Intersecting Path -> (wraps) Polygon
+  - The first press from another tool only switches to the Selector, as
+    before, and keeps the mode that was used last (default: Rectangle).
+  - Clicking the mode buttons with the mouse/pen works as before; cycling is
+    keyboard-shortcut only. The sidebar mode buttons update to show the mode.
+
+ Changes:
+  1. crates/rnote-ui/src/penssidebar/selectorpage.rs
+       New cycle_selector_style() (uses the existing set_selector_style()).
+  2. crates/rnote-ui/src/appwindow/actions.rs
+       In the "pen-style" action: if the activated style is already the active
+       one AND it is the selector, call cycle_selector_style().
+  3. build-aux/rnote_inno.iss.in      version label -> v1-1
+  4. .github/workflows/build-rnote-mod.yml   default build label -> v1-1
+  5. README.md
+       Your edited version (master wording kept). Fixed: typo, tense, double
+       full stop. Updated the version-naming section; added a "Modified from
+       Rnote 0.14.2 starting 2026-10-10" line.
+  6. rnote-mod_docs/
+       Changelog dates; project map renamed v1-1, now includes the sandbox
+       type-check recipe.
+
+ Verification: the UI crate type-checks (cargo check) in the sandbox. The
+ setup was first proven on the unmodified v1-0-1 code, and shown to catch a
+ deliberately broken line. NOT done: running the app. Behaviour is untested.
+
+ Interplay with your AutoHotkey script:
+  - "~t" sends Ctrl+5, so pressing T while the selector is active now also
+    cycles the mode.
+  - Pen button 2 hold alternates Ctrl+5 / Ctrl+1. If you change tools by hand,
+    its next Ctrl+5 may land while the selector is already active and cycle
+    the mode instead of just selecting the tool.
+
+
+---------------------------------------------------------------------
+ rnote-mod_v1-0-1      2026-10-11
+ STATUS: BUILT on GitHub, installs and runs (confirmed by user)
+---------------------------------------------------------------------
+ Build-pipeline fix + docs. No feature changes.
+  1. justfile
+       Removed mingw-w64-x86_64-diffutils and mingw-w64-x86_64-desktop-file-utils
+       from the "prerequisites-win" package list. MSYS2 no longer provides them,
+       which made pacman abort the whole install. Neither is needed: the build
+       treats desktop-file-validate and appstreamcli as optional (tests only)
+       and nothing uses diffutils.
+  2. README.md replaced with the Rnote-Mod README (docs only; upstream's
+     README removed).
+ Note: installed apps list shows "v1-0" for this build (label set in a file
+ that was only bumped from v1-1 on); the installer file name was v1-0-1.
+
+
+---------------------------------------------------------------------
+ rnote-mod_v1-0        2026-10-10
+ STATUS: FAILED on GitHub at the "Prerequisites" step (see v1-0-1 fix)
 ---------------------------------------------------------------------
  Purpose: safe side-by-side baseline + test of the GitHub build route.
- NO new features in this build. Behaves like upstream Rnote 0.14.2.
+ NO new features.
 
  Changes:
   1. meson.build
@@ -18,68 +81,45 @@
        (settings schema ID, application ID, icon/desktop file names)
   2. meson.build + crates/rnote-ui/data/meson.build
        New settings_path /local/rnotemod/ used for the settings schema
-       (where Windows stores settings), so Rnote-Mod settings are fully
-       separate from the original Rnote. The UI resource path
-       (app_idpath) is intentionally UNCHANGED - it is hardcoded in
-       ~30 places and renaming it would break the UI.
+       (where Windows stores settings), so Rnote-Mod settings are separate
+       from the original Rnote. The UI resource path (app_idpath) is
+       intentionally UNCHANGED - it is hardcoded in ~30 places and renaming
+       it would break the UI.
   3. build-aux/rnote_inno.iss.in (installer)
        - New permanent installer ID (AppId GUID 25BF6B11-31B5-4B78-B247-E59637F621FA).
-         Same for every rnote-mod build, so each new build upgrades the
-         previous Rnote-Mod install in place. Do not change it.
-       - App name "Rnote-Mod": install folder, Start menu entry,
-         desktop shortcut, uninstall entry
-       - Version label shown in Windows "Installed apps": "v1-0"
-         (ModVersion define - bump every build)
-       - Own file-association key "RnoteModFile.rnote": adds Rnote-Mod
-         to the "Open with" list for .rnote files, does NOT take over
-         the default program
-       - Removed the registry write to Applications\rnote.exe that the
-         original installer also uses
+         Same for every rnote-mod build, so each new build upgrades the previous
+         Rnote-Mod install in place. Do not change it.
+       - App name "Rnote-Mod": install folder, Start menu entry, desktop
+         shortcut, uninstall entry
+       - Version label shown in Windows "Installed apps" (ModVersion define -
+         bump every build)
+       - Own file-association key "RnoteModFile.rnote": adds Rnote-Mod to the
+         "Open with" list for .rnote files, does NOT take over the default program
+       - Removed the registry write to Applications\rnote.exe that the original
+         installer also uses
   4. .github/workflows
-       Removed all upstream workflows (CI, nightly, release, etc.).
-       Added build-rnote-mod.yml: manual trigger only, produces
-       rnote-mod_<label>.exe as a downloadable run artifact (kept 14 days).
-       Build steps are identical to upstream's Windows release workflow.
+       Removed all upstream workflows. Added build-rnote-mod.yml: manual trigger
+       only, produces rnote-mod_<label>.exe as a downloadable run artifact
+       (kept 14 days). Build steps identical to upstream's Windows release workflow.
   5. Added rnote-mod_docs/ (this changelog + project map)
-  6. justfile (rev 2 fix)
-       Removed mingw-w64-x86_64-diffutils and mingw-w64-x86_64-desktop-file-utils from the
-       "prerequisites-win" package list. MSYS2 no longer provides them, which made pacman
-       abort the whole install. Neither is needed: the build treats desktop-file-validate and
-       appstreamcli as optional (tests only) and nothing uses diffutils.
-  7. README.md replaced with the Rnote-Mod README (docs only; upstream's README removed)
 
- Revision history (v1-0 has not produced an installer yet, so fixes stay inside v1-0):
-  rev 1  First GitHub run FAILED at step "Prerequisites": pacman reported
-         "target not found" for mingw-w64-x86_64-diffutils and mingw-w64-x86_64-desktop-file-utils.
-  rev 2  Removed those two packages from justfile. Steps after "Prerequisites" have not run
-         yet, so further fixes may be needed.
-
- Deliberately NOT changed:
-  - Executable name stays rnote.exe (so your AutoHotkey rules for
-    ahk_exe rnote.exe keep working; note they apply to BOTH installs)
+ Deliberately NOT changed (all builds):
+  - Executable name stays rnote.exe (keeps AutoHotkey ahk_exe rnote.exe rules
+    working; they apply to BOTH installs)
   - Icons, UI resources, .rnote file format, engine code
 
- Known risks (untested - source could not be compiled in the sandbox):
-  - justfile "prerequisites-win" downloads pinned MSYS2 packages
-    (gtk4 4.18.6, cairo 1.18.4, ...). If MSYS2 has removed them the
-    "Prerequisites" step fails with a download error.
-  - First-run build time unknown (estimate 30-60+ min).
-
  Install folder:  C:\Program Files\Rnote-Mod
- Installer file:  rnote-mod_v1-0.exe
 
 
 ---------------------------------------------------------------------
  PLANNED (not decided / not started)
 ---------------------------------------------------------------------
- rnote-mod_v1-1   Feature 1: Ctrl+5 repeat cycles the 4 selector modes
-                  (Polygon -> Rectangle -> Single -> Intersecting Path -> wrap)
-                  Feature 3: hardcoded plain-key tool shortcuts
-                  G -> Shaper (Ctrl+2), T -> Selector (Ctrl+5),
+ rnote-mod_v1-2   Feature 3: hardcoded plain-key tool shortcuts
+                  G -> Shaper (Ctrl+2), T -> Selector (Ctrl+5, cycles),
                   E -> Eraser (Ctrl+4), Q -> Brush (Ctrl+1)
                   (inactive while typing text in the Typewriter tool)
-                  Optional: undo history cap 100 -> ~30 (awaiting your OK)
- rnote-mod_v1-2   Feature 2: colour-palette pie menu on Space
+ rnote-mod_v1-3   Feature 2: colour-palette pie menu on Space
+ undecided        Undo history cap 100 -> ~30 (awaiting your OK)
  later            Feature 4 (RAM/lag): after Task Manager measurements
 
 
