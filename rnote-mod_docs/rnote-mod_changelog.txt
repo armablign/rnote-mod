@@ -7,7 +7,7 @@
 
 
 ---------------------------------------------------------------------
- rnote-mod_v1-0        STATUS: SOURCE READY - not yet built/tested
+ rnote-mod_v1-0        STATUS: SOURCE READY (rev 2) - no successful build yet
 ---------------------------------------------------------------------
  Purpose: safe side-by-side baseline + test of the GitHub build route.
  NO new features in this build. Behaves like upstream Rnote 0.14.2.
@@ -41,6 +41,18 @@
        rnote-mod_<label>.exe as a downloadable run artifact (kept 14 days).
        Build steps are identical to upstream's Windows release workflow.
   5. Added rnote-mod_docs/ (this changelog + project map)
+  6. justfile (rev 2 fix)
+       Removed mingw-w64-x86_64-diffutils and mingw-w64-x86_64-desktop-file-utils from the
+       "prerequisites-win" package list. MSYS2 no longer provides them, which made pacman
+       abort the whole install. Neither is needed: the build treats desktop-file-validate and
+       appstreamcli as optional (tests only) and nothing uses diffutils.
+  7. README.md replaced with the Rnote-Mod README (docs only; upstream's README removed)
+
+ Revision history (v1-0 has not produced an installer yet, so fixes stay inside v1-0):
+  rev 1  First GitHub run FAILED at step "Prerequisites": pacman reported
+         "target not found" for mingw-w64-x86_64-diffutils and mingw-w64-x86_64-desktop-file-utils.
+  rev 2  Removed those two packages from justfile. Steps after "Prerequisites" have not run
+         yet, so further fixes may be needed.
 
  Deliberately NOT changed:
   - Executable name stays rnote.exe (so your AutoHotkey rules for
