@@ -975,6 +975,12 @@ impl RnCanvas {
         }
     }
 
+    /// rnote-mod: true while the text input context is attached to the key controller,
+    /// i.e. while the text tool is the current tool and letter keys belong to the text input.
+    pub(crate) fn text_preprocessing_enabled(&self) -> bool {
+        self.imp().key_controller.im_context().is_some()
+    }
+
     /// Switches between the regular and the drawing cursor
     pub(crate) fn enable_drawing_cursor(&self, drawing_cursor: bool) {
         if drawing_cursor == self.imp().drawing_cursor_enabled.get() {

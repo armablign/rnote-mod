@@ -216,6 +216,7 @@ impl RnAppWindow {
         self.setup_icon_theme();
         self.setup_actions();
         self.setup_action_accels();
+        self.setup_plain_key_shortcuts();
 
         if !self.app().settings_schema_found() {
             // Display an error toast if settings schema could not be found
@@ -240,6 +241,78 @@ impl RnAppWindow {
         // Anything that needs to be done right before showing the appwindow
 
         self.refresh_ui();
+    }
+
+    /// rnote-mod: personal plain-key tool shortcuts (Q brush, G shaper, E eraser, T selector).
+    ///
+    /// Installed as a capture-phase key controller on the window, so the shortcuts also work while a
+    /// toolbar button has keyboard focus (the canvas only takes focus when it is pressed).
+    fn setup_plain_key_shortcuts(&self) {
+        let key_controller = gtk4::EventControllerKey::new();
+        key_controller.set_propagation_phase(gtk4::PropagationPhase::Capture);
+        key_controller.connect_key_pressed(glib::clone!(
+            #[weak(rename_to = appwindow)]
+            self,
+            #[upgrade_or]
+            glib::Propagation::Proceed,
+            move |_, key, _, modifiers| appwindow.handle_plain_key_tool_shortcut(key, modifiers)
+        ));
+        self.add_controller(key_controller);
+    }
+
+    /// rnote-mod: switches the tool through the existing "pen-style" action, which is the same path the
+    /// Ctrl+1..6 shortcuts take. That also means pressing T while the selector is active cycles the
+    /// selector mode (Feature 1).
+    fn handle_plain_key_tool_shortcut(
+        &self,
+        key: gdk::Key,
+        modifiers: gdk::ModifierType,
+    ) -> glib::Propagation {
+        // Plain key presses only. Alt is deliberately allowed, so the shortcuts keep working while an
+        // Alt toggle (e.g. from a pen button remap) is active.
+        if modifiers.intersects(
+            gdk::ModifierType::CONTROL_MASK
+                | gdk::ModifierType::SHIFT_MASK
+                | gdk::ModifierType::SUPER_MASK
+                | gdk::ModifierType::META_MASK,
+        ) {
+            return glib::Propagation::Proceed;
+        }
+
+        let pen_style = match key.to_lower() {
+            gdk::Key::q => "brush",
+            gdk::Key::g => "shaper",
+            gdk::Key::e => "eraser",
+            gdk::Key::t => "selector",
+            _ => return glib::Propagation::Proceed,
+        };
+
+        // Not while a dialog is open.
+        if adw::prelude::AdwApplicationWindowExt::visible_dialog(self).is_some() {
+            return glib::Propagation::Proceed;
+        }
+
+        // Not while typing in a text field.
+        if let Some(focus) = gtk4::prelude::GtkWindowExt::focus(self)
+            && (focus.is::<gtk4::Editable>() || focus.is::<gtk4::TextView>())
+        {
+            return glib::Propagation::Proceed;
+        }
+
+        // Not while the text tool is active: the letters belong to the text input.
+        let Some(canvas) = self.active_tab_canvas() else {
+            return glib::Propagation::Proceed;
+        };
+        if canvas.text_preprocessing_enabled() {
+            return glib::Propagation::Proceed;
+        }
+
+        gtk4::prelude::ActionGroupExt::activate_action(
+            self,
+            "pen-style",
+            Some(&pen_style.to_variant()),
+        );
+        glib::Propagation::Stop
     }
 
     fn setup_icon_theme(&self) {

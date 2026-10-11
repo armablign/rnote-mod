@@ -1,8 +1,8 @@
-# rnote-mod — Project Map (v1-1)
+# rnote-mod — Project Map (v1-2)
 
 Base: **Rnote 0.14.2** (GPL-3.0-or-later). Rust edition 2024, min rustc 1.89.
 Re-upload the latest `rnote-mod-SourceFiles_vX-Y-Z.zip` in a new session: it contains the source, this map and the changelog.
-Status: v1-0-1 builds and runs. v1-1 = Feature 1 (selector cycling), type-checked, awaiting a real-app test.
+Status: v1-0-1 builds and runs; v1-1 (Feature 1, selector cycling) built and works. v1-2 = Feature 3 (plain-key shortcuts), type-checked, awaiting a real-app test.
 
 ## 1. Workspace (4 crates, ~54k lines of Rust)
 | Crate | Role |
@@ -48,11 +48,15 @@ Source zips: `rnote-mod-SourceFiles_vX-Y-Z.zip`; GitHub artifacts: `rnote-mod_vX
   and is `Selector`, call `RnSelectorPage::cycle_selector_style()` (`penssidebar/selectorpage.rs`), which steps the toggle buttons
   Polygon -> Rectangle -> Single -> IntersectingPath -> wrap; the toggles' `connect_toggled` handlers write the engine config.
   The action is only triggered by keyboard accelerators (Ctrl+1..6, `actions.rs` ~L1141), not by sidebar clicks.
-- **F3 plain-key shortcuts (planned v1-2).** One choke point: `rnote-ui/src/canvas/input.rs::handle_key_controller_key_pressed` (~L233).
-  Must stay inactive while the Typewriter tool is editing text (text arrives via IM context commit too). Plain Space is unbound
-  (Ctrl+Space is used, input.rs ~L462). Ctrl+T = new tab, Ctrl+Q = quit (no conflict with plain letters).
-  User mapping: G -> Shaper (Ctrl+2), T -> Selector (Ctrl+5), E -> Eraser (Ctrl+4), Q -> Brush (Ctrl+1).
-  User's AutoHotkey also sends these (`~g/~t/~e/~q`): remove those lines once built in (would double-fire).
+- **F3 plain-key shortcuts — DONE in v1-2.** Window-level capture-phase `EventControllerKey` added in
+  `appwindow/mod.rs::setup_plain_key_shortcuts()` (called from `init()`); handler `handle_plain_key_tool_shortcut()` maps
+  Q/G/E/T -> brush/shaper/eraser/selector and activates the existing `pen-style` action. Window level (not canvas level) because the
+  canvas only grabs keyboard focus on pen/mouse DOWN (`canvas/input.rs`), so a canvas-level hook would be dead after clicking a toolbar
+  button. Skips: Ctrl/Shift/Super/Meta held (Alt allowed), text tool active (`RnCanvas::text_preprocessing_enabled()` = IM context
+  attached, which `penholder.rs` sets whenever the current style is Typewriter), focus in an `Editable`/`TextView`, a visible dialog.
+  Space (pie menu, v1-3) should reuse this same controller. Canvas key handler (`canvas/input.rs::handle_key_controller_key_pressed`)
+  is untouched; Ctrl+Space is its only shortcut key. User's AutoHotkey `~g/~t/~e/~q` lines double-fire on the mod: limit them to the
+  original Rnote (`!IsRnoteMod()` check via `WinGetProcessPath`).
 - **F2 pie menu (planned v1-3).** Colour picker has 9 `RnColorSetter`s (`setter_1..9` in `data/ui/colorpicker.ui`, `colorpicker/`),
   matching the user's 1-9 AutoHotkey keys. `set_stroke_color/set_fill_color` exist. New radial widget at last pointer position; default
   design: tap Space to open, click swatch to apply to the active tool and close.
@@ -79,4 +83,5 @@ Ubuntu 24.04 sandbox, 1 CPU: first run ~5-8 min, later runs seconds. It type-che
    d. `RUSTC=/usr/bin/rustc-1.91 cargo-1.91 check -p rnote --ignore-rust-version` (3 vello crates declare rustc 1.92; 1.91 works)
    e. Run detached with bash: `bash -c 'source env.sh; setsid nohup cargo-1.91 check ... > log 2>&1 < /dev/null &'` (jobs die between tool
       calls otherwise; sh has no `source`; never `pkill -f` a pattern that matches your own command).
-3. Proven in v1-1: unmodified v1-0-1 passes; a deliberate type error is caught; the Feature 1 change passes.
+3. Proven: unmodified v1-0-1 passes; a deliberate type error is caught; Feature 1 passes; in v1-2 it caught a real ambiguous-method
+   error (`visible_dialog` exists in two adw traits -> call it fully qualified) before any GitHub build.

@@ -8,8 +8,50 @@
 
 
 ---------------------------------------------------------------------
- rnote-mod_v1-1        2026-10-11
+ rnote-mod_v1-2        2026-10-11
  STATUS: SOURCE READY - type-checked in the sandbox, NOT yet tried in the app
+---------------------------------------------------------------------
+ FEATURE 3: plain-key tool shortcuts.
+
+   Q -> Brush (Ctrl+1)     G -> Shaper (Ctrl+2)
+   E -> Eraser (Ctrl+4)    T -> Selector (Ctrl+5)
+   Pressing T while the Selector is already active cycles its mode (Feature 1).
+   The normal Ctrl+1..6 shortcuts are unchanged.
+
+ A letter press is IGNORED (passes through to Rnote as before) when:
+   - Ctrl, Shift, Super or Meta is held (Alt is allowed, so the shortcuts keep
+     working while an Alt toggle from a pen button is active)
+   - the Text tool is the current tool (the letters belong to the text input;
+     leave the Text tool with Ctrl+1..6 or the toolbar)
+   - a text field has keyboard focus (rename boxes, entries, ...)
+   - a dialog is open
+ It works wherever keyboard focus is inside the main window, including right
+ after clicking a toolbar or colour button (the canvas itself only takes focus
+ when it is pressed). Holding a key repeats it (holding T keeps cycling).
+
+ Changes:
+  1. crates/rnote-ui/src/appwindow/mod.rs
+       setup_plain_key_shortcuts(): window-level key controller (capture phase),
+       called from init(); handle_plain_key_tool_shortcut(): applies the rules
+       above and switches tool through the existing "pen-style" action, the same
+       path Ctrl+1..6 take.
+  2. crates/rnote-ui/src/canvas/mod.rs
+       text_preprocessing_enabled(): true while letters go to the text input.
+  3. build-aux/rnote_inno.iss.in      version label -> v1-2
+  4. .github/workflows/build-rnote-mod.yml   default build label -> v1-2
+  5. rnote-mod_docs/                  changelog + project map v1-2
+
+ Verification: type-checked in the sandbox. That check caught an ambiguous call
+ (visible_dialog) which is fixed in this build. NOT done: running the app.
+
+ AutoHotkey: your "~g / ~t / ~e / ~q" lines now DOUBLE-FIRE on Rnote-Mod (T would
+ cycle the selector twice per press). Limit them to the original Rnote, see the
+ snippet given with this build. Keys 1-9, backtick and "+" are unaffected.
+
+
+---------------------------------------------------------------------
+ rnote-mod_v1-1        2026-10-11
+ STATUS: BUILT on GitHub, installed and works (confirmed by user)
 ---------------------------------------------------------------------
  FEATURE 1: selector mode cycling with wrap-around.
 
@@ -114,10 +156,6 @@
 ---------------------------------------------------------------------
  PLANNED (not decided / not started)
 ---------------------------------------------------------------------
- rnote-mod_v1-2   Feature 3: hardcoded plain-key tool shortcuts
-                  G -> Shaper (Ctrl+2), T -> Selector (Ctrl+5, cycles),
-                  E -> Eraser (Ctrl+4), Q -> Brush (Ctrl+1)
-                  (inactive while typing text in the Typewriter tool)
  rnote-mod_v1-3   Feature 2: colour-palette pie menu on Space
  undecided        Undo history cap 100 -> ~30 (awaiting your OK)
  later            Feature 4 (RAM/lag): after Task Manager measurements
