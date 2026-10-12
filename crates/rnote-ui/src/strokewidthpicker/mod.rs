@@ -310,6 +310,21 @@ impl RnStrokeWidthPicker {
         }
     }
 
+    /// rnote-mod: activates the next of the three stroke width presets (setters), wrapping around
+    /// after the third. If no preset is active (e.g. after a style change) the first one is activated.
+    /// Activating a setter applies its width through the same handlers as clicking it.
+    pub(crate) fn cycle_setters(&self) {
+        let imp = self.imp();
+
+        if imp.setter_1.is_active() {
+            imp.setter_2.set_active(true);
+        } else if imp.setter_2.is_active() {
+            imp.setter_3.set_active(true);
+        } else {
+            imp.setter_1.set_active(true);
+        }
+    }
+
     pub(crate) fn deselect_setters(&self) {
         let imp = self.imp();
 

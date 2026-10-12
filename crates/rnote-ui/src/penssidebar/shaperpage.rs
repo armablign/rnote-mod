@@ -15,6 +15,7 @@ use rnote_compose::style::rough::roughoptions::FillStyle;
 use rnote_compose::style::smooth::{LineCap, LineStyle, SmoothOptions};
 use rnote_engine::pens::pensconfig::ShaperConfig;
 use rnote_engine::pens::pensconfig::shaperconfig::ShaperStyle;
+use std::cell::RefCell;
 
 mod imp {
     use super::*;
@@ -70,6 +71,9 @@ mod imp {
 
         #[template_child]
         pub(crate) stroke_width_picker: TemplateChild<RnStrokeWidthPicker>,
+
+        /// rnote-mod: one switch per shape for the shape cycle list (created in code)
+        pub(crate) cycle_rows: RefCell<Vec<(ShapeBuilderType, adw::SwitchRow)>>,
     }
 
     #[glib::object_subclass]
@@ -154,6 +158,126 @@ impl RnShaperPage {
         self.imp()
             .shapebuildertype_picker
             .set_picked(Some(builder_type.to_icon_name()));
+    }
+
+    /// rnote-mod: switch to the next shape of the cycle list (the favourites chosen in the shaper
+    /// configuration), wrapping around after the last one. If the current shape is not in the list,
+    /// the first shape of the list is used. Does nothing when the list is empty.
+    pub(crate) fn cycle_shapebuildertype(&self, appwindow: &RnAppWindow) {
+        let cycle_list = appwindow
+            .engine_config()
+            .read()
+            .pens_config
+            .shaper_config
+            .cycle_builder_types
+            .clone();
+        let Some(first) = cycle_list.first().copied() else {
+            return;
+        };
+
+        let next = match self.shapebuildertype() {
+            Some(current) => {
+                match cycle_list
+                    .iter()
+                    .position(|builder_type| builder_type.to_u32() == current.to_u32())
+                {
+                    Some(index) => cycle_list[(index + 1) % cycle_list.len()],
+                    None => first,
+                }
+            }
+            None => first,
+        };
+
+        // Setting the picker updates the toolbar icon and the engine config through its notify handler.
+        self.set_shapebuildertype(next);
+    }
+
+    /// rnote-mod: adds a group to the shaper configuration popover where the shapes of the cycle list
+    /// are chosen: a collapsed row that holds a scrollable list with one switch per shape.
+    /// The list is stored in the engine config, which is saved with the other settings.
+    fn init_cycle_shapes_group(&self, appwindow: &RnAppWindow) {
+        let imp = self.imp();
+
+        // Same vertical box that holds the other groups of the configuration popover.
+        let Some(container) = imp.smoothstyle_group.parent().and_downcast::<gtk4::Box>() else {
+            return;
+        };
+
+        let all_builder_types = [
+            ShapeBuilderType::Line,
+            ShapeBuilderType::Arrow,
+            ShapeBuilderType::Rectangle,
+            ShapeBuilderType::Grid,
+            ShapeBuilderType::CoordSystem2D,
+            ShapeBuilderType::CoordSystem3D,
+            ShapeBuilderType::QuadrantCoordSystem2D,
+            ShapeBuilderType::Ellipse,
+            ShapeBuilderType::FociEllipse,
+            ShapeBuilderType::QuadBez,
+            ShapeBuilderType::CubBez,
+            ShapeBuilderType::Polyline,
+            ShapeBuilderType::Polygon,
+        ];
+
+        let listbox = ListBox::builder()
+            .selection_mode(gtk4::SelectionMode::None)
+            .css_classes(["boxed-list"])
+            .build();
+        let mut rows = Vec::with_capacity(all_builder_types.len());
+
+        for builder_type in all_builder_types {
+            let row = adw::SwitchRow::builder()
+                .title(shape_builder_type_icons_to_display_name(
+                    &builder_type.to_icon_name(),
+                ))
+                .build();
+
+            // Each switch only adds / removes its own shape, so setting all switches from the config
+            // (refresh_ui) can never overwrite the list with a half-updated state.
+            row.connect_active_notify(clone!(
+                #[weak]
+                appwindow,
+                move |row| {
+                    let engine_config = appwindow.engine_config();
+                    let mut engine_config = engine_config.write();
+                    let cycle_list = &mut engine_config.pens_config.shaper_config.cycle_builder_types;
+                    let present = cycle_list
+                        .iter()
+                        .any(|listed| listed.to_u32() == builder_type.to_u32());
+
+                    if row.is_active() && !present {
+                        cycle_list.push(builder_type);
+                        // keep the cycle in the same order as the shape picker
+                        cycle_list.sort_by_key(|listed| listed.to_u32());
+                    } else if !row.is_active() && present {
+                        cycle_list.retain(|listed| listed.to_u32() != builder_type.to_u32());
+                    }
+                }
+            ));
+
+            listbox.append(&row);
+            rows.push((builder_type, row));
+        }
+        imp.cycle_rows.replace(rows);
+
+        let scrolled = gtk4::ScrolledWindow::builder()
+            .child(&listbox)
+            .hscrollbar_policy(gtk4::PolicyType::Never)
+            .max_content_height(220)
+            .propagate_natural_height(true)
+            .build();
+        let expander = adw::ExpanderRow::builder()
+            .title(gettext("Shapes in the cycle"))
+            .subtitle(gettext(
+                "Pressing the Shaper shortcut again switches between these shapes",
+            ))
+            .build();
+        expander.add_row(&scrolled);
+        let group = adw::PreferencesGroup::builder()
+            .title(gettext("Shape Cycling"))
+            .build();
+        group.add(&expander);
+        container.append(&group);
     }
 
     pub(crate) fn smoothstyle_line_cap(&self) -> LineCap {
@@ -460,6 +584,9 @@ impl RnShaperPage {
             ),
         );
 
+        // rnote-mod: shape cycle list settings
+        self.init_cycle_shapes_group(appwindow);
+
         // Constraints
         imp.constraint_enabled_row
             .get()
@@ -587,6 +714,16 @@ impl RnShaperPage {
 
         // builder type
         self.set_shapebuildertype(shaper_config.builder_type);
+
+        // rnote-mod: shape cycle list
+        for (builder_type, row) in imp.cycle_rows.borrow().iter() {
+            row.set_active(
+                shaper_config
+                    .cycle_builder_types
+                    .iter()
+                    .any(|listed| listed.to_u32() == builder_type.to_u32()),
+            );
+        }
 
         // Smooth style
         imp.smoothstyle_line_cap_row

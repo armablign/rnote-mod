@@ -343,6 +343,23 @@ impl RnAppWindow {
                         .penssidebar()
                         .selector_page()
                         .cycle_selector_style();
+                } else if pen_style == PenStyle::Shaper {
+                    // rnote-mod: the shaper shortcut was pressed while the shaper is already active
+                    // -> switch to the next shape of the cycle list.
+                    appwindow
+                        .overlays()
+                        .penssidebar()
+                        .shaper_page()
+                        .cycle_shapebuildertype(&appwindow);
+                } else if pen_style == PenStyle::Brush {
+                    // rnote-mod: the brush shortcut was pressed while the brush is already active
+                    // -> activate the next of the three stroke width presets.
+                    appwindow
+                        .overlays()
+                        .penssidebar()
+                        .brush_page()
+                        .stroke_width_picker()
+                        .cycle_setters();
                 }
                 action.set_state(&pen_style_str.to_variant());
             }

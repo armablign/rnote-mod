@@ -1,8 +1,8 @@
-# rnote-mod — Project Map (v1-2)
+# rnote-mod — Project Map (v1-3)
 
 Base: **Rnote 0.14.2** (GPL-3.0-or-later). Rust edition 2024, min rustc 1.89.
 Re-upload the latest `rnote-mod-SourceFiles_vX-Y-Z.zip` in a new session: it contains the source, this map and the changelog.
-Status: v1-0-1 builds and runs; v1-1 (Feature 1, selector cycling) built and works. v1-2 = Feature 3 (plain-key shortcuts), type-checked, awaiting a real-app test.
+Status: v1-0-1 builds and runs; v1-1 (Feature 1, selector cycling) built and works. v1-2 (Feature 3, plain-key shortcuts) built and works. v1-3 = Feature 5 (shape + brush-preset cycling), type-checked, awaiting a real-app test.
 
 ## 1. Workspace (4 crates, ~54k lines of Rust)
 | Crate | Role |
@@ -54,10 +54,21 @@ Source zips: `rnote-mod-SourceFiles_vX-Y-Z.zip`; GitHub artifacts: `rnote-mod_vX
   canvas only grabs keyboard focus on pen/mouse DOWN (`canvas/input.rs`), so a canvas-level hook would be dead after clicking a toolbar
   button. Skips: Ctrl/Shift/Super/Meta held (Alt allowed), text tool active (`RnCanvas::text_preprocessing_enabled()` = IM context
   attached, which `penholder.rs` sets whenever the current style is Typewriter), focus in an `Editable`/`TextView`, a visible dialog.
-  Space (pie menu, v1-3) should reuse this same controller. Canvas key handler (`canvas/input.rs::handle_key_controller_key_pressed`)
-  is untouched; Ctrl+Space is its only shortcut key. User's AutoHotkey `~g/~t/~e/~q` lines double-fire on the mod: limit them to the
-  original Rnote (`!IsRnoteMod()` check via `WinGetProcessPath`).
-- **F2 pie menu (planned v1-3).** Colour picker has 9 `RnColorSetter`s (`setter_1..9` in `data/ui/colorpicker.ui`, `colorpicker/`),
+  Space (pie menu) should reuse this same controller. Canvas key handler (`canvas/input.rs::handle_key_controller_key_pressed`)
+  is untouched; Ctrl+Space is its only shortcut key. User is dropping AutoHotkey except pen-button HID handling (possibly to be built into the mod later); do not plan around his AHK keybinds.
+- **F5 shape + brush-preset cycling — DONE in v1-3.** Same hook as F1: the `pen-style` action handler in `appwindow/actions.rs` runs
+  the cycle when the activated style is already the current one (Selector -> `cycle_selector_style`, Shaper ->
+  `RnShaperPage::cycle_shapebuildertype`, Brush -> `RnStrokeWidthPicker::cycle_setters`). Shaper: the cycle list is
+  `ShaperConfig.cycle_builder_types` (engine, `#[serde(default)]`); the whole engine config is saved as one JSON string in the
+  GSettings key `engine-config` (`appwindow/mod.rs` ~L1001/L1041), so a new config field persists automatically. UI: group built IN CODE
+  in `shaperpage.rs::init_cycle_shapes_group` (inserted into the parent box of `smoothstyle_group`): collapsed `AdwExpanderRow` with a
+  scrolled list of 13 `AdwSwitchRow`s; each switch only adds/removes its own shape so `refresh_ui` cannot clobber the list. Built in
+  code on purpose: a typo in a `.ui` template is NOT caught by the type-check and panics at app start. `ShapeBuilderType` has no
+  `PartialEq`; compare with `to_u32()`. Shape picker order: Line, Arrow, Rectangle, Grid, CoordSystem2D, CoordSystem3D,
+  QuadrantCoordSystem2D, Ellipse, FociEllipse, QuadBez, CubBez, Polyline, Polygon. Brush presets = 3 `RnStrokeWidthSetter`s
+  (`strokewidthpicker/mod.rs`, toggle buttons that apply their width on activation; the spin button edits the active one).
+  Init order: `overlays.init` (builds pages) -> `load_settings` -> `refresh_ui`.
+- **F2 pie menu (planned v1-4).** Colour picker has 9 `RnColorSetter`s (`setter_1..9` in `data/ui/colorpicker.ui`, `colorpicker/`),
   matching the user's 1-9 AutoHotkey keys. `set_stroke_color/set_fill_color` exist. New radial widget at last pointer position; default
   design: tap Space to open, click swatch to apply to the active tool and close.
 - **F4 RAM / lag.** Undo history is already capped: `HISTORY_MAX_LEN = 100` (`rnote-engine/src/store/mod.rs`), entries share data via

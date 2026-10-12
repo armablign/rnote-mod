@@ -8,8 +8,54 @@
 
 
 ---------------------------------------------------------------------
- rnote-mod_v1-2        2026-10-11
+ rnote-mod_v1-3        2026-10-12
  STATUS: SOURCE READY - type-checked in the sandbox, NOT yet tried in the app
+---------------------------------------------------------------------
+ FEATURE 5: shape cycling (G) and brush size preset cycling (Q).
+
+ (a) Shaper - pressing the shaper shortcut again (G, or Ctrl+2) while the Shaper is
+     already active switches to the next shape of YOUR cycle list:
+       - Order follows the shape picker. After the last shape it wraps to the first.
+       - If the current shape is not in the list, the first listed shape is used.
+       - If the list is empty, nothing happens.
+       - The first press from another tool only switches to the Shaper and keeps
+         the last used shape, as before.
+     The list is chosen in the Shaper configuration popover (the config button
+     below the shape picker): a new "Shape Cycling" group at the bottom holds a
+     collapsed row "Shapes in the cycle". Expand it for a scrollable list with
+     one switch per shape (all 13). It is SAVED with the other settings (stored in
+     the engine config JSON, so it survives restarts).
+     Default list for a fresh/older config: Line, Arrow, Rectangle, Ellipse.
+ (b) Brush - pressing the brush shortcut again (Q, or Ctrl+1) while the Brush is
+     already active activates the next of the three stroke-width presets
+     (1 -> 2 -> 3 -> 1). If no preset is highlighted, the first is used. This
+     clicks the preset buttons; the +/- spin control is not touched. The size of a
+     preset is still changed as before (select it, then adjust the width).
+
+ Changes:
+  1. crates/rnote-engine/src/pens/pensconfig/shaperconfig.rs
+       New saved field cycle_builder_types (list of shapes, serde default, so old
+       saved configs still load).
+  2. crates/rnote-ui/src/penssidebar/shaperpage.rs
+       cycle_shapebuildertype(); init_cycle_shapes_group() builds the settings
+       group in code; refresh_ui() loads the switches from the saved list.
+  3. crates/rnote-ui/src/strokewidthpicker/mod.rs
+       cycle_setters(): next stroke-width preset with wrap-around.
+  4. crates/rnote-ui/src/appwindow/actions.rs
+       "pen-style" action: shaper / brush shortcut pressed while already active ->
+       the cycle calls above (selector cycling from v1-1 unchanged).
+  5. build-aux/rnote_inno.iss.in      version label -> v1-3
+  6. .github/workflows/build-rnote-mod.yml   default build label -> v1-3
+  7. rnote-mod_docs/                  changelog + project map v1-3
+
+ Verification: whole workspace type-checks in the sandbox (UI, engine, CLI).
+ NOT done: running the app. The new settings group is built in code, so its
+ on-screen layout (popover height, scrolling) is untested.
+
+
+---------------------------------------------------------------------
+ rnote-mod_v1-2        2026-10-11
+ STATUS: BUILT on GitHub, installed and works (confirmed by user; pen/tablet parts not tested yet)
 ---------------------------------------------------------------------
  FEATURE 3: plain-key tool shortcuts.
 
@@ -156,8 +202,10 @@
 ---------------------------------------------------------------------
  PLANNED (not decided / not started)
 ---------------------------------------------------------------------
- rnote-mod_v1-3   Feature 2: colour-palette pie menu on Space
+ rnote-mod_v1-4   Feature 2: colour-palette pie menu on Space
+ around v1-4/5    Shift+` = next palette colour (1 -> 2), Ctrl+` = previous
  undecided        Undo history cap 100 -> ~30 (awaiting your OK)
+ later            Pen-button (HID) handling inside the mod, to replace AutoHotkey
  later            Feature 4 (RAM/lag): after Task Manager measurements
 
 

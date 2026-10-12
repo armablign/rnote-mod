@@ -55,6 +55,10 @@ pub struct ShaperConfig {
     pub highlight_opacity: f64,
     #[serde(rename = "constraints")]
     pub constraints: Constraints,
+    /// rnote-mod: the shapes that the shape shortcut (G) cycles through, in cycle order.
+    /// Saved with the rest of the engine config.
+    #[serde(rename = "cycle_builder_types")]
+    pub cycle_builder_types: Vec<ShapeBuilderType>,
 }
 
 impl Default for ShaperConfig {
@@ -72,6 +76,12 @@ impl Default for ShaperConfig {
             highlight_mode: false,
             highlight_opacity: 0.45,
             constraints,
+            cycle_builder_types: vec![
+                ShapeBuilderType::Line,
+                ShapeBuilderType::Arrow,
+                ShapeBuilderType::Rectangle,
+                ShapeBuilderType::Ellipse,
+            ],
         }
     }
 }
