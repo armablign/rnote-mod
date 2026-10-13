@@ -8,6 +8,7 @@ use crate::{
     FileType, RnApp, RnCanvas, RnCanvasWrapper, RnMainHeader, RnOverlays, RnSidebar, config,
     dialogs, env,
 };
+use crate::piemenu::PieMenu;
 use adw::{prelude::*, subclass::prelude::*};
 use core::cell::{Ref, RefMut};
 use gettextrs::gettext;
@@ -243,33 +244,115 @@ impl RnAppWindow {
         self.refresh_ui();
     }
 
-    /// rnote-mod: personal plain-key tool shortcuts (Q brush, G shaper, E eraser, T selector).
+    /// rnote-mod: window-level key shortcuts. A capture-phase key controller on the window, so they also
+    /// work while a toolbar button has keyboard focus (the canvas only takes focus when it is pressed).
     ///
-    /// Installed as a capture-phase key controller on the window, so the shortcuts also work while a
-    /// toolbar button has keyboard focus (the canvas only takes focus when it is pressed).
+    /// - Q / G / E / T: brush / shaper / eraser / selector
+    /// - Shift+` / Ctrl+`: next / previous palette colour (standalone, independent of the pie menu)
+    /// - Space: colour pie menu at the pointer
     fn setup_plain_key_shortcuts(&self) {
+        let toolbar_overlay = self.overlays().toolbar_overlay();
+
+        // Last known pointer position in the coordinates of the toolbar overlay, which is also the
+        // coordinate space of the pie menu that is added to it.
+        let pointer_pos = std::rc::Rc::new(std::cell::Cell::new((0.0_f64, 0.0_f64)));
+        let motion_controller = gtk4::EventControllerMotion::new();
+        motion_controller.set_propagation_phase(gtk4::PropagationPhase::Capture);
+        motion_controller.connect_motion(glib::clone!(
+            #[strong]
+            pointer_pos,
+            move |_, x, y| pointer_pos.set((x, y))
+        ));
+        toolbar_overlay.add_controller(motion_controller);
+
+        let pie_menu = PieMenu::new(glib::clone!(
+            #[weak(rename_to = appwindow)]
+            self,
+            move |index| appwindow.overlays().colorpicker().pick_setter(index)
+        ));
+        toolbar_overlay.add_overlay(pie_menu.widget());
+
         let key_controller = gtk4::EventControllerKey::new();
         key_controller.set_propagation_phase(gtk4::PropagationPhase::Capture);
         key_controller.connect_key_pressed(glib::clone!(
             #[weak(rename_to = appwindow)]
             self,
+            #[strong]
+            pie_menu,
+            #[strong]
+            pointer_pos,
             #[upgrade_or]
             glib::Propagation::Proceed,
-            move |_, key, _, modifiers| appwindow.handle_plain_key_tool_shortcut(key, modifiers)
+            move |_, key, _, modifiers| appwindow.handle_window_key_shortcut(
+                key,
+                modifiers,
+                &pie_menu,
+                pointer_pos.get()
+            )
         ));
         self.add_controller(key_controller);
     }
 
-    /// rnote-mod: switches the tool through the existing "pen-style" action, which is the same path the
-    /// Ctrl+1..6 shortcuts take. That also means pressing T while the selector is active cycles the
-    /// selector mode (Feature 1).
-    fn handle_plain_key_tool_shortcut(
+    /// rnote-mod: true when the window-level key shortcuts must not act: a dialog is open, a text field
+    /// has focus, or (with `block_in_text_tool`) the text tool is active, where letters belong to the text.
+    fn window_key_shortcuts_blocked(&self, block_in_text_tool: bool) -> bool {
+        if adw::prelude::AdwApplicationWindowExt::visible_dialog(self).is_some() {
+            return true;
+        }
+
+        if let Some(focus) = gtk4::prelude::GtkWindowExt::focus(self)
+            && (focus.is::<gtk4::Editable>() || focus.is::<gtk4::TextView>())
+        {
+            return true;
+        }
+
+        if block_in_text_tool {
+            return match self.active_tab_canvas() {
+                Some(canvas) => canvas.text_preprocessing_enabled(),
+                None => true,
+            };
+        }
+
+        false
+    }
+
+    fn handle_window_key_shortcut(
         &self,
         key: gdk::Key,
         modifiers: gdk::ModifierType,
+        pie_menu: &PieMenu,
+        pointer: (f64, f64),
     ) -> glib::Propagation {
-        // Plain key presses only. Alt is deliberately allowed, so the shortcuts keep working while an
-        // Alt toggle (e.g. from a pen button remap) is active.
+        // While the pie menu is open: Escape or Space close it, the number keys 1-9 pick a colour.
+        if pie_menu.is_open()
+            && !modifiers.intersects(
+                gdk::ModifierType::CONTROL_MASK
+                    | gdk::ModifierType::SUPER_MASK
+                    | gdk::ModifierType::META_MASK,
+            )
+        {
+            if matches!(key, gdk::Key::Escape | gdk::Key::space) {
+                pie_menu.close();
+                return glib::Propagation::Stop;
+            }
+            if let Some(index) = palette_index_from_key(key) {
+                pie_menu.pick(index);
+                return glib::Propagation::Stop;
+            }
+        }
+
+        // Shift+` = next palette colour, Ctrl+` = previous palette colour
+        if let Some(forward) = colour_cycle_direction(key, modifiers) {
+            // Shift+` types a "~" in the text tool, so only Ctrl+` is allowed there
+            if self.window_key_shortcuts_blocked(forward) {
+                return glib::Propagation::Proceed;
+            }
+            self.overlays().colorpicker().cycle_setters(forward);
+            return glib::Propagation::Stop;
+        }
+
+        // Plain presses only from here on. Alt is deliberately allowed, so the shortcuts keep working
+        // while an Alt toggle (e.g. from a pen button remap) is active.
         if modifiers.intersects(
             gdk::ModifierType::CONTROL_MASK
                 | gdk::ModifierType::SHIFT_MASK
@@ -279,6 +362,17 @@ impl RnAppWindow {
             return glib::Propagation::Proceed;
         }
 
+        // Space = colour pie menu
+        if key == gdk::Key::space {
+            if self.window_key_shortcuts_blocked(true) {
+                return glib::Propagation::Proceed;
+            }
+            self.open_pie_menu(pie_menu, pointer);
+            return glib::Propagation::Stop;
+        }
+
+        // Q / G / E / T = tool shortcuts. They go through the existing "pen-style" action, the same path
+        // as Ctrl+1..6, so pressing the key of the active tool again cycles (selector mode, shape, brush size).
         let pen_style = match key.to_lower() {
             gdk::Key::q => "brush",
             gdk::Key::g => "shaper",
@@ -287,32 +381,36 @@ impl RnAppWindow {
             _ => return glib::Propagation::Proceed,
         };
 
-        // Not while a dialog is open.
-        if adw::prelude::AdwApplicationWindowExt::visible_dialog(self).is_some() {
+        if self.window_key_shortcuts_blocked(true) {
             return glib::Propagation::Proceed;
         }
 
-        // Not while typing in a text field.
-        if let Some(focus) = gtk4::prelude::GtkWindowExt::focus(self)
-            && (focus.is::<gtk4::Editable>() || focus.is::<gtk4::TextView>())
-        {
-            return glib::Propagation::Proceed;
-        }
-
-        // Not while the text tool is active: the letters belong to the text input.
-        let Some(canvas) = self.active_tab_canvas() else {
-            return glib::Propagation::Proceed;
-        };
-        if canvas.text_preprocessing_enabled() {
-            return glib::Propagation::Proceed;
-        }
-
+        pie_menu.close();
         gtk4::prelude::ActionGroupExt::activate_action(
             self,
             "pen-style",
             Some(&pen_style.to_variant()),
         );
         glib::Propagation::Stop
+    }
+
+    /// rnote-mod: opens the colour pie menu around the pointer, showing the nine palette colours.
+    fn open_pie_menu(&self, pie_menu: &PieMenu, pointer: (f64, f64)) {
+        let overlays = self.overlays();
+        let overlay = overlays.toolbar_overlay();
+        let colorpicker = overlays.colorpicker();
+
+        pie_menu.open(
+            pointer,
+            (f64::from(overlay.width()), f64::from(overlay.height())),
+            colorpicker
+                .setters()
+                .iter()
+                .map(|setter| setter.color())
+                .collect(),
+            colorpicker.current_setter_index(),
+            colorpicker.active_pad_color(),
+        );
     }
 
     fn setup_icon_theme(&self) {
@@ -1061,5 +1159,39 @@ impl RnAppWindow {
         }
 
         Ok(())
+    }
+}
+
+/// rnote-mod: palette slot (0-8) for the number keys 1-9 (also on the numpad)
+fn palette_index_from_key(key: gdk::Key) -> Option<usize> {
+    match key {
+        gdk::Key::_1 | gdk::Key::KP_1 => Some(0),
+        gdk::Key::_2 | gdk::Key::KP_2 => Some(1),
+        gdk::Key::_3 | gdk::Key::KP_3 => Some(2),
+        gdk::Key::_4 | gdk::Key::KP_4 => Some(3),
+        gdk::Key::_5 | gdk::Key::KP_5 => Some(4),
+        gdk::Key::_6 | gdk::Key::KP_6 => Some(5),
+        gdk::Key::_7 | gdk::Key::KP_7 => Some(6),
+        gdk::Key::_8 | gdk::Key::KP_8 => Some(7),
+        gdk::Key::_9 | gdk::Key::KP_9 => Some(8),
+        _ => None,
+    }
+}
+
+/// rnote-mod: Shift+` selects the next palette colour (`Some(true)`), Ctrl+` the previous one
+/// (`Some(false)`). The key is accepted as grave or tilde, since Shift turns one into the other.
+fn colour_cycle_direction(key: gdk::Key, modifiers: gdk::ModifierType) -> Option<bool> {
+    if !matches!(key, gdk::Key::grave | gdk::Key::asciitilde)
+        || modifiers.intersects(gdk::ModifierType::SUPER_MASK | gdk::ModifierType::META_MASK)
+    {
+        return None;
+    }
+
+    let shift = modifiers.contains(gdk::ModifierType::SHIFT_MASK);
+    let ctrl = modifiers.contains(gdk::ModifierType::CONTROL_MASK);
+    match (shift, ctrl) {
+        (true, false) => Some(true),
+        (false, true) => Some(false),
+        _ => None,
     }
 }

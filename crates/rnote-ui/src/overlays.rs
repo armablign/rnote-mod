@@ -104,6 +104,11 @@ impl RnOverlays {
         glib::Object::new()
     }
 
+    /// rnote-mod: the overlay that covers the canvas area and holds the toolbars; the pie menu is added to it
+    pub(crate) fn toolbar_overlay(&self) -> Overlay {
+        self.imp().toolbar_overlay.get()
+    }
+
     pub(crate) fn penpicker(&self) -> RnPenPicker {
         self.imp().penpicker.get()
     }

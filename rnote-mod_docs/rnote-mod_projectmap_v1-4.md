@@ -1,8 +1,8 @@
-# rnote-mod — Project Map (v1-3)
+# rnote-mod — Project Map (v1-4)
 
 Base: **Rnote 0.14.2** (GPL-3.0-or-later). Rust edition 2024, min rustc 1.89.
 Re-upload the latest `rnote-mod-SourceFiles_vX-Y-Z.zip` in a new session: it contains the source, this map and the changelog.
-Status: v1-0-1 builds and runs; v1-1 (Feature 1, selector cycling) built and works. v1-2 (Feature 3, plain-key shortcuts) built and works. v1-3 = Feature 5 (shape + brush-preset cycling), type-checked, awaiting a real-app test.
+Status: v1-0-1 builds and runs; v1-1 (Feature 1, selector cycling) built and works. v1-2 (Feature 3, plain-key shortcuts) built and works. v1-3 (Feature 5, shape + brush-preset cycling) built and works. v1-4 = colour cycling (Shift+`/Ctrl+`) + colour pie menu (Space), type-checked, awaiting a real-app test.
 
 ## 1. Workspace (4 crates, ~54k lines of Rust)
 | Crate | Role |
@@ -68,9 +68,16 @@ Source zips: `rnote-mod-SourceFiles_vX-Y-Z.zip`; GitHub artifacts: `rnote-mod_vX
   QuadrantCoordSystem2D, Ellipse, FociEllipse, QuadBez, CubBez, Polyline, Polygon. Brush presets = 3 `RnStrokeWidthSetter`s
   (`strokewidthpicker/mod.rs`, toggle buttons that apply their width on activation; the spin button edits the active one).
   Init order: `overlays.init` (builds pages) -> `load_settings` -> `refresh_ui`.
-- **F2 pie menu (planned v1-4).** Colour picker has 9 `RnColorSetter`s (`setter_1..9` in `data/ui/colorpicker.ui`, `colorpicker/`),
-  matching the user's 1-9 AutoHotkey keys. `set_stroke_color/set_fill_color` exist. New radial widget at last pointer position; default
-  design: tap Space to open, click swatch to apply to the active tool and close.
+- **F6 palette colour cycling + F2 pie menu — DONE in v1-4 (two independent features; the user asked that the cycling keys are NOT a sub-feature of
+  the pie menu).** Both live in the window-level capture-phase key controller (`appwindow/mod.rs::setup_plain_key_shortcuts` /
+  `handle_window_key_shortcut`; shared guards in `window_key_shortcuts_blocked`). Palette = 9 `RnColorSetter`s of `RnColorPicker`
+  (`colorpicker/mod.rs`); activating one applies its colour to the selected pad (stroke/fill) via a private `set_color_active_pad`, so
+  `pick_setter(i)` toggles the setter off/on and `cycle_setters(forward)` steps through them (start = highlighted setter, else the setter
+  whose colour equals the pad colour, else first/last). Keys: Shift+` forward, Ctrl+` backward (keyval grave or asciitilde), Space = pie.
+  Pie menu = `piemenu.rs`: plain `DrawingArea` (cairo draw func, `EventControllerMotion` for hover, `GestureClick` for picks) added as an overlay
+  child of `RnOverlays::toolbar_overlay` (Fill/Fill, hidden until opened) so it covers the canvas area and swallows the dismiss click. Pointer
+  position comes from a capture-phase `EventControllerMotion` on that same overlay, so coordinates share the pie's origin. Slice 0 at top,
+  clockwise, number keys 1-9 pick while open. New source files must also be listed in `crates/rnote-ui/src/meson.build`.
 - **F4 RAM / lag.** Undo history is already capped: `HISTORY_MAX_LEN = 100` (`rnote-engine/src/store/mod.rs`), entries share data via
   `Arc`. "Atomic file saving" (0.14.0) only makes saves crash-safe. Off-screen stroke images are cleared (`store/render_comp.rs`);
   zoom range 0.2-6.0; viewport margin factor 0.4. Likely cause of zoomed-out lag: per-stroke re-rendering of everything in view on a weak

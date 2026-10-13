@@ -487,6 +487,70 @@ impl RnColorPicker {
         self.imp().setter_9.get()
     }
 
+    /// rnote-mod: the nine palette setters in palette order
+    pub(crate) fn setters(&self) -> [RnColorSetter; 9] {
+        [
+            self.setter_1(),
+            self.setter_2(),
+            self.setter_3(),
+            self.setter_4(),
+            self.setter_5(),
+            self.setter_6(),
+            self.setter_7(),
+            self.setter_8(),
+            self.setter_9(),
+        ]
+    }
+
+    /// rnote-mod: the colour of the selected pad (stroke or fill)
+    pub(crate) fn active_pad_color(&self) -> gdk::RGBA {
+        if self.imp().fill_color_pad.is_active() && !self.imp().stroke_color_pad.is_active() {
+            self.fill_color()
+        } else {
+            self.stroke_color()
+        }
+    }
+
+    /// rnote-mod: index of the current palette colour: the highlighted setter or, if none is
+    /// highlighted, the setter whose colour equals the colour of the selected pad.
+    pub(crate) fn current_setter_index(&self) -> Option<usize> {
+        let setters = self.setters();
+
+        if let Some(index) = setters.iter().position(|setter| setter.is_active()) {
+            return Some(index);
+        }
+
+        let pad_color = self.active_pad_color().into_compose_color();
+        setters
+            .iter()
+            .position(|setter| setter.color().into_compose_color() == pad_color)
+    }
+
+    /// rnote-mod: selects the palette colour with the given index (0-8) for the selected pad,
+    /// exactly like clicking it.
+    pub(crate) fn pick_setter(&self, index: usize) {
+        if let Some(setter) = self.setters().get(index) {
+            // Switched off first so the colour is also applied when this setter was already highlighted
+            // but the pad has a different colour (e.g. after switching pens).
+            setter.set_active(false);
+            setter.set_active(true);
+        }
+    }
+
+    /// rnote-mod: selects the next (`forward`: 1 -> 2 -> ... -> 9 -> 1) or previous palette colour.
+    /// Without a current palette colour, forward starts at the first and backward at the last.
+    pub(crate) fn cycle_setters(&self, forward: bool) {
+        let count = self.setters().len();
+        let next = match (self.current_setter_index(), forward) {
+            (Some(index), true) => (index + 1) % count,
+            (Some(index), false) => (index + count - 1) % count,
+            (None, true) => 0,
+            (None, false) => count - 1,
+        };
+
+        self.pick_setter(next);
+    }
+
     pub(crate) fn active_color_label(&self) -> Label {
         self.imp().active_color_label.get()
     }

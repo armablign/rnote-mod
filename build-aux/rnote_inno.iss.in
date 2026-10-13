@@ -8,7 +8,7 @@
 #define MyAppName "Rnote-Mod"
 #define MyAppVersion @APP_VERSION@
 ; rnote-mod build label. Bump together with rnote-mod_changelog.txt for every build.
-#define ModVersion "v1-3"
+#define ModVersion "v1-4"
 #define MyAppPublisher @APP_AUTHOR_NAME@
 #define MyAppURL @APP_WEBSITE@
 #define MyAppExeName @UI_OUTPUT@

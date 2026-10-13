@@ -8,8 +8,60 @@
 
 
 ---------------------------------------------------------------------
- rnote-mod_v1-3        2026-10-12
+ rnote-mod_v1-4        2026-10-13
  STATUS: SOURCE READY - type-checked in the sandbox, NOT yet tried in the app
+---------------------------------------------------------------------
+ FEATURE 6: palette colour cycling (standalone keybind).
+   Shift+`  ->  next palette colour      (1 -> 2 -> ... -> 9 -> 1)
+   Ctrl+`   ->  previous palette colour  (2 -> 1, 1 -> 9)
+ - Independent of the pie menu and of whether the colour toolbar is used. It does
+   exactly what clicking the palette colour does: the colour goes to the selected
+   pad (stroke or fill) of the current pen.
+ - Start point: the highlighted palette colour; if none is highlighted but the
+   current colour equals a palette colour, it continues from that one; otherwise
+   forward starts at colour 1 and backward at colour 9.
+ - The key is accepted as grave or tilde (Shift turns one into the other).
+ - Ignored while a dialog is open or a text field has focus. In the Text tool
+   Shift+` is ignored (it types "~"); Ctrl+` still works there.
+
+ FEATURE 2: colour pie menu (Space).
+ - Space opens a ring of the nine palette colours centred on the pointer (moved
+   inward near the window edges). Slice 1 is at the top, the rest follow clockwise;
+   the slice numbers are drawn on it. The current colour has a white outline and is
+   also shown in the middle.
+ - Click / tap a slice: applies that palette colour (like clicking it in the
+   toolbar) and closes the menu. The number keys 1-9 pick a slice too.
+   Esc, Space again, or a click outside the ring closes it without a change.
+   The page behind is dimmed slightly, and a click outside does not draw.
+ - The slices always show the live palette, including colours you customised.
+ - Text tool: Space still types a space (menu off). In the main window Space no
+   longer activates a focused button (Enter still does).
+ - While the menu is open, pressing Q/G/E/T switches tool and closes the menu.
+
+ Changes:
+  1. crates/rnote-ui/src/piemenu.rs                NEW  the pie menu (plain DrawingArea,
+       drawn with cairo, added to the toolbar overlay so it covers the canvas area)
+  2. crates/rnote-ui/src/appwindow/mod.rs
+       Window-level key controller extended: colour cycling, Space / pie menu keys,
+       pointer position tracking (motion controller on the toolbar overlay);
+       Q/G/E/T handling unchanged in behaviour (shared checks).
+  3. crates/rnote-ui/src/colorpicker/mod.rs
+       setters(), active_pad_color(), current_setter_index(), pick_setter(),
+       cycle_setters(): palette access for both features.
+  4. crates/rnote-ui/src/overlays.rs               toolbar_overlay() accessor
+  5. crates/rnote-ui/src/main.rs + src/meson.build  register piemenu
+  6. build-aux/rnote_inno.iss.in                   version label -> v1-4
+  7. .github/workflows/build-rnote-mod.yml         default build label -> v1-4
+  8. rnote-mod_docs/                               changelog + project map v1-4
+
+ Verification: type-checked in the sandbox (UI crate). NOT done: running the app.
+ Untested on screen: ring size/look, pointer tracking and stylus taps on a tablet,
+ behaviour near window edges.
+
+
+---------------------------------------------------------------------
+ rnote-mod_v1-3        2026-10-12
+ STATUS: BUILT on GitHub, installed and works (confirmed by user: Shape Cycling group, G cycling, saved list, Q presets)
 ---------------------------------------------------------------------
  FEATURE 5: shape cycling (G) and brush size preset cycling (Q).
 
@@ -202,8 +254,6 @@
 ---------------------------------------------------------------------
  PLANNED (not decided / not started)
 ---------------------------------------------------------------------
- rnote-mod_v1-4   Feature 2: colour-palette pie menu on Space
- around v1-4/5    Shift+` = next palette colour (1 -> 2), Ctrl+` = previous
  undecided        Undo history cap 100 -> ~30 (awaiting your OK)
  later            Pen-button (HID) handling inside the mod, to replace AutoHotkey
  later            Feature 4 (RAM/lag): after Task Manager measurements
