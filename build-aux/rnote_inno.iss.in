@@ -4,14 +4,17 @@
 ;   - app name "Rnote-Mod" (install folder, Start menu, desktop shortcut, uninstall entry)
 ;   - own file-association ProgID key
 ;   - removed the Applications\rnote.exe registry key shared with the original
+;   - v1-5: executable installed as rnote-mod.exe, registered under its own Applications key
 
 #define MyAppName "Rnote-Mod"
 #define MyAppVersion @APP_VERSION@
 ; rnote-mod build label. Bump together with rnote-mod_changelog.txt for every build.
-#define ModVersion "v1-4"
+#define ModVersion "v1-5"
 #define MyAppPublisher @APP_AUTHOR_NAME@
 #define MyAppURL @APP_WEBSITE@
 #define MyAppExeName @UI_OUTPUT@
+; rnote-mod: the executable is installed as rnote-mod.exe (the build still produces rnote.exe)
+#define MyInstalledExeName "rnote-mod.exe"
 #define MyAppAssocName MyAppName + " File"
 #define MyAppAssocExt ".rnote"
 #define MyAppAssocKey "RnoteModFile" + MyAppAssocExt
@@ -39,7 +42,7 @@ LicenseFile={#meson_source_root}\LICENSE
 OutputDir={#meson_build_root}
 OutputBaseFilename=@INSTALLER_NAME@
 SetupIconFile={#meson_source_root}\crates\rnote-ui\data\icons\rnote.ico
-UninstallDisplayIcon = {app}\bin\{#MyAppExeName}
+UninstallDisplayIcon = {app}\bin\{#MyInstalledExeName}
 ; Uncomment the following line to run in non administrative install mode (install for current user only.)
 ;PrivilegesRequired=lowest
 ChangesAssociations=yes
@@ -90,18 +93,26 @@ Source: "{#meson_source_root}\crates\rnote-engine\data\sounds\typewriter\*"; Des
 Source: "{#meson_source_root}\crates\rnote-engine\data\sounds\LICENSES.md"; DestDir: "{app}\share\rnote\"; Flags: ignoreversion
 
 ; Binary
-Source: "{#meson_build_root}\{#MyAppExeName}"; DestDir: "{app}\bin\"; Flags: ignoreversion
+Source: "{#meson_build_root}\{#MyAppExeName}"; DestDir: "{app}\bin\"; DestName: "{#MyInstalledExeName}"; Flags: ignoreversion
 
 [Registry]
 Root: HKA; Subkey: "Software\Classes\{#MyAppAssocKey}"; ValueType: string; ValueName: ""; ValueData: "{#MyAppAssocName}"; Flags: uninsdeletekey
 Root: HKA; Subkey: "Software\Classes\{#MyAppAssocExt}\OpenWithProgids"; ValueType: string; ValueName: "{#MyAppAssocKey}"; ValueData: ""; Flags: uninsdeletevalue
 Root: HKA; Subkey: "Software\Classes\{#MyAppAssocKey}\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: """{app}\application-rnote.ico"""; Flags: uninsdeletekey
-Root: HKA; Subkey: "Software\Classes\{#MyAppAssocKey}\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\bin\{#MyAppExeName}"" ""%1"""
+Root: HKA; Subkey: "Software\Classes\{#MyAppAssocKey}\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\bin\{#MyInstalledExeName}"" ""%1"""
+; rnote-mod: register the renamed executable so the "Open with" list shows it as "Rnote-Mod"
+Root: HKA; Subkey: "Software\Classes\Applications\{#MyInstalledExeName}"; ValueType: string; ValueName: "FriendlyAppName"; ValueData: "{#MyAppName}"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\Applications\{#MyInstalledExeName}\SupportedTypes"; ValueType: string; ValueName: "{#MyAppAssocExt}"; ValueData: ""
+Root: HKA; Subkey: "Software\Classes\Applications\{#MyInstalledExeName}\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\bin\{#MyInstalledExeName}"" ""%1"""
+
+[InstallDelete]
+; rnote-mod: earlier builds installed the executable as rnote.exe; remove it when upgrading
+Type: files; Name: "{app}\bin\rnote.exe"
 
 [Icons]
-Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\bin\{#MyAppExeName}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\bin\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\bin\{#MyInstalledExeName}"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\bin\{#MyInstalledExeName}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\bin\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\bin\{#MyInstalledExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 

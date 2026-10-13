@@ -1,8 +1,8 @@
-# rnote-mod — Project Map (v1-4)
+# rnote-mod — Project Map (v1-5)
 
 Base: **Rnote 0.14.2** (GPL-3.0-or-later). Rust edition 2024, min rustc 1.89.
 Re-upload the latest `rnote-mod-SourceFiles_vX-Y-Z.zip` in a new session: it contains the source, this map and the changelog.
-Status: v1-0-1 builds and runs; v1-1 (Feature 1, selector cycling) built and works. v1-2 (Feature 3, plain-key shortcuts) built and works. v1-3 (Feature 5, shape + brush-preset cycling) built and works. v1-4 = colour cycling (Shift+`/Ctrl+`) + colour pie menu (Space), type-checked, awaiting a real-app test.
+Status: v1-0-1 builds and runs; v1-1 (Feature 1, selector cycling) built and works. v1-2 (Feature 3, plain-key shortcuts) built and works. v1-3 (Feature 5, shape + brush-preset cycling) built and works. v1-4 (colour cycling Shift+`/Ctrl+` + colour pie menu on Space) built, tested, works. v1-5 = pie polish + saved opacity setting + exe renamed to rnote-mod.exe, awaiting a real-app test.
 
 ## 1. Workspace (4 crates, ~54k lines of Rust)
 | Crate | Role |
@@ -77,7 +77,9 @@ Source zips: `rnote-mod-SourceFiles_vX-Y-Z.zip`; GitHub artifacts: `rnote-mod_vX
   Pie menu = `piemenu.rs`: plain `DrawingArea` (cairo draw func, `EventControllerMotion` for hover, `GestureClick` for picks) added as an overlay
   child of `RnOverlays::toolbar_overlay` (Fill/Fill, hidden until opened) so it covers the canvas area and swallows the dismiss click. Pointer
   position comes from a capture-phase `EventControllerMotion` on that same overlay, so coordinates share the pie's origin. Slice 0 at top,
-  clockwise, number keys 1-9 pick while open. New source files must also be listed in `crates/rnote-ui/src/meson.build`.
+  clockwise, number keys 1-9 pick while open (no labels drawn since v1-5). v1-5: slices are rounded annular sectors (`slice_path`: four corner
+  circles tangent to the radial edge and the inner/outer arc), no centre disc, selected outline drawn last, slice opacity from the GSettings key
+  `pie-menu-opacity` (default 0.5; row built in code in `settingspanel/mod.rs::init_pie_menu_group`, inserted below the General group). New source files must also be listed in `crates/rnote-ui/src/meson.build`.
 - **F4 RAM / lag.** Undo history is already capped: `HISTORY_MAX_LEN = 100` (`rnote-engine/src/store/mod.rs`), entries share data via
   `Arc`. "Atomic file saving" (0.14.0) only makes saves crash-safe. Off-screen stroke images are cleared (`store/render_comp.rs`);
   zoom range 0.2-6.0; viewport margin factor 0.4. Likely cause of zoomed-out lag: per-stroke re-rendering of everything in view on a weak
@@ -103,3 +105,18 @@ Ubuntu 24.04 sandbox, 1 CPU: first run ~5-8 min, later runs seconds. It type-che
       calls otherwise; sh has no `source`; never `pkill -f` a pattern that matches your own command).
 3. Proven: unmodified v1-0-1 passes; a deliberate type error is caught; Feature 1 passes; in v1-2 it caught a real ambiguous-method
    error (`visible_dialog` exists in two adw traits -> call it fully qualified) before any GitHub build.
+
+## 9. Where user settings are stored (Windows)
+No settings backend is forced (`app/mod.rs`), so GLib's default Windows backend is used: the REGISTRY (`gregistrysettingsbackend.c`, priority 90),
+under `HKEY_CURRENT_USER\Software\GSettings\<schema path>`. Original Rnote: `...\GSettings\com\github\flxzt\rnote`; Rnote-Mod:
+`...\GSettings\local\rnotemod` (schema path from meson `settings_path`). Simple values are native registry values; complex GVariant types are
+stored as text. Notable keys (`crates/rnote-ui/data/app.gschema.xml.in`): `colorpicker-color-1..9` = `(r, g, b, a)` doubles 0-1; `document-config-preset`
+= JSON with the default document style for NEW documents (`format.border_color`, `background.color/pattern/pattern_size/pattern_color`, layout);
+`engine-config` = JSON (pens incl. `shaper_config.cycle_builder_types`, etc.); `workspace-list`; `pie-menu-opacity`. Colours in JSON are `{r,g,b,a}` 0-1
+with 3 decimals. Each `.rnote` file also stores its own document style; the preset only applies to new documents. To port settings from the original:
+`reg export` its key, change the path in the .reg to the mod's key, close Rnote-Mod, import.
+
+## 10. Installer facts
+Built as `rnote.exe` (meson `ui_output`), INSTALLED as `bin\rnote-mod.exe` via Inno `DestName` / `MyInstalledExeName` (v1-5). Own `Applications\rnote-mod.exe`
+registration (FriendlyAppName), `[InstallDelete]` removes the old `bin\rnote.exe` on upgrade. Do not rename meson `app_name` (it feeds `app_idpath`,
+the hardcoded UI resource prefix).

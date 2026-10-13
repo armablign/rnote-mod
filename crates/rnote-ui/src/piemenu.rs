@@ -1,14 +1,14 @@
 //! rnote-mod: colour pie menu.
 //!
 //! A radial menu that is drawn on top of the canvas area, centred on the pointer. It shows the nine
-//! palette colours; what happens when one is picked is decided by the caller (`RnAppWindow`).
-//! It is a plain `DrawingArea` (no new GObject type) that fills the overlay it is added to, so it also
-//! catches the click that dismisses it.
+//! palette colours as softly rounded slices; what happens when one is picked is decided by the caller
+//! (`RnAppWindow`). It is a plain `DrawingArea` (no new GObject type) that fills the overlay it is added
+//! to, so it also catches the click that dismisses it.
 
 use gtk4::glib::{self, clone};
 use gtk4::{Align, DrawingArea, EventControllerMotion, GestureClick, cairo, gdk, prelude::*};
 use std::cell::{Cell, RefCell};
-use std::f64::consts::PI;
+use std::f64::consts::{FRAC_PI_2, PI};
 use std::rc::Rc;
 
 const SLICES: usize = 9;
@@ -16,6 +16,8 @@ const INNER_RADIUS: f64 = 40.0;
 const OUTER_RADIUS: f64 = 120.0;
 const HOVER_GROW: f64 = 10.0;
 const EDGE_MARGIN: f64 = 12.0;
+/// radius of the rounded corners of the slices
+const CORNER_RADIUS: f64 = 8.0;
 
 struct State {
     /// centre of the ring, in the coordinates of the drawing area
@@ -23,8 +25,8 @@ struct State {
     hovered: Cell<Option<usize>>,
     /// the slice of the colour that is currently selected, if any
     active: Cell<Option<usize>>,
-    /// the colour of the selected pad, drawn in the middle of the ring
-    current: RefCell<gdk::RGBA>,
+    /// opacity of the slices, 0.1 - 1.0
+    opacity: Cell<f64>,
     colors: RefCell<Vec<gdk::RGBA>>,
 }
 
@@ -58,7 +60,7 @@ impl PieMenu {
             center: Cell::new((0.0, 0.0)),
             hovered: Cell::new(None),
             active: Cell::new(None),
-            current: RefCell::new(gdk::RGBA::new(0.0, 0.0, 0.0, 1.0)),
+            opacity: Cell::new(0.5),
             colors: RefCell::new(Vec::new()),
         });
         let on_pick: Rc<dyn Fn(usize)> = Rc::new(on_pick);
@@ -125,15 +127,15 @@ impl PieMenu {
     }
 
     /// Opens the menu centred on `pointer`, moved inward if it would stick out of `bounds`
-    /// (the size of the overlay). `active` is the slice of the selected colour, `current` the colour
-    /// that is drawn in the middle.
+    /// (the size of the overlay). `active` is the slice of the selected colour, `opacity` the opacity
+    /// of the slices (0.1 - 1.0).
     pub(crate) fn open(
         &self,
         pointer: (f64, f64),
         bounds: (f64, f64),
         colors: Vec<gdk::RGBA>,
         active: Option<usize>,
-        current: gdk::RGBA,
+        opacity: f64,
     ) {
         let reach = OUTER_RADIUS + HOVER_GROW + EDGE_MARGIN;
         let clamp = |value: f64, size: f64| {
@@ -155,7 +157,7 @@ impl PieMenu {
             .set((clamp(pointer.0, bounds.0), clamp(pointer.1, bounds.1)));
         self.state.hovered.set(None);
         self.state.active.set(active);
-        self.state.current.replace(current);
+        self.state.opacity.set(opacity.clamp(0.1, 1.0));
         self.state.colors.replace(colors);
         self.area.set_visible(true);
         self.area.queue_draw();
@@ -172,87 +174,95 @@ impl PieMenu {
     }
 }
 
+/// Adds the outline of a ring slice with rounded corners to the path of `cr`. The slice spans the
+/// angles `start..end` (radians) between the radii `inner` and `outer`.
+fn slice_path(cr: &cairo::Context, center: (f64, f64), inner: f64, outer: f64, start: f64, end: f64) {
+    let (cx, cy) = center;
+    // never rounder than the ring is thick
+    let radius = CORNER_RADIUS.min((outer - inner) / 2.0 - 0.5);
+    // the four corners are circles that touch the slice's radial edge and its inner / outer arc
+    let outer_centre = outer - radius;
+    let inner_centre = inner + radius;
+    let outer_offset = (radius / outer_centre).asin();
+    let inner_offset = (radius / inner_centre).asin();
+
+    let corner = |centre_radius: f64, centre_angle: f64, from: f64, to: f64| {
+        cr.arc(
+            cx + centre_radius * centre_angle.cos(),
+            cy + centre_radius * centre_angle.sin(),
+            radius,
+            from,
+            to,
+        );
+    };
+
+    cr.new_path();
+    // outer arc
+    cr.arc(cx, cy, outer, start + outer_offset, end - outer_offset);
+    // outer corner at the end edge
+    corner(outer_centre, end - outer_offset, end - outer_offset, end + FRAC_PI_2);
+    // inner corner at the end edge
+    corner(inner_centre, end - inner_offset, end + FRAC_PI_2, end - inner_offset + PI);
+    // inner arc, backwards
+    cr.arc_negative(cx, cy, inner, end - inner_offset, start + inner_offset);
+    // inner corner at the start edge
+    corner(inner_centre, start + inner_offset, start + inner_offset + PI, start + 3.0 * FRAC_PI_2);
+    // outer corner at the start edge
+    corner(outer_centre, start + outer_offset, start - FRAC_PI_2, start + outer_offset);
+    cr.close_path();
+}
+
 fn draw(state: &State, cr: &cairo::Context) {
     // faint scrim: shows that the menu is modal
     cr.set_source_rgba(0.0, 0.0, 0.0, 0.12);
     let _ = cr.paint();
 
-    let (cx, cy) = state.center.get();
+    let center = state.center.get();
     let step = 2.0 * PI / SLICES as f64;
     let colors = state.colors.borrow();
     let hovered = state.hovered.get();
     let active = state.active.get();
+    let opacity = state.opacity.get();
 
-    cr.select_font_face("Sans", cairo::FontSlant::Normal, cairo::FontWeight::Bold);
-    cr.set_font_size(16.0);
-
-    for (index, color) in colors.iter().enumerate().take(SLICES) {
-        let middle = -PI / 2.0 + index as f64 * step;
-        let outer = if hovered == Some(index) {
+    let outer_radius_of = |index: usize| {
+        if hovered == Some(index) {
             OUTER_RADIUS + HOVER_GROW
         } else {
             OUTER_RADIUS
-        };
+        }
+    };
+    let slice_angles = |index: usize| {
+        let middle = -PI / 2.0 + index as f64 * step;
+        (middle - step / 2.0, middle + step / 2.0)
+    };
 
-        cr.new_path();
-        cr.arc(cx, cy, outer, middle - step / 2.0, middle + step / 2.0);
-        cr.arc_negative(cx, cy, INNER_RADIUS, middle + step / 2.0, middle - step / 2.0);
-        cr.close_path();
+    // all slices first ...
+    for (index, color) in colors.iter().enumerate().take(SLICES) {
+        let (start, end) = slice_angles(index);
+        slice_path(cr, center, INNER_RADIUS, outer_radius_of(index), start, end);
 
-        let (red, green, blue) = (
+        cr.set_source_rgba(
             f64::from(color.red()),
             f64::from(color.green()),
             f64::from(color.blue()),
+            f64::from(color.alpha()) * opacity,
         );
-        cr.set_source_rgb(red, green, blue);
         let _ = cr.fill_preserve();
 
-        if active == Some(index) {
-            cr.set_source_rgb(0.0, 0.0, 0.0);
-            cr.set_line_width(7.0);
-            let _ = cr.stroke_preserve();
-            cr.set_source_rgb(1.0, 1.0, 1.0);
-            cr.set_line_width(3.5);
-            let _ = cr.stroke();
-        } else {
-            cr.set_source_rgba(0.0, 0.0, 0.0, 0.6);
-            cr.set_line_width(1.5);
-            let _ = cr.stroke();
-        }
-
-        // number label: also the key that picks this colour while the menu is open
-        let label = (index + 1).to_string();
-        let label_radius = (INNER_RADIUS + outer) / 2.0;
-        let (label_x, label_y) = (
-            cx + label_radius * middle.cos(),
-            cy + label_radius * middle.sin(),
-        );
-        if 0.299 * red + 0.587 * green + 0.114 * blue > 0.55 {
-            cr.set_source_rgb(0.0, 0.0, 0.0);
-        } else {
-            cr.set_source_rgb(1.0, 1.0, 1.0);
-        }
-        if let Ok(extents) = cr.text_extents(&label) {
-            cr.move_to(
-                label_x - extents.width() / 2.0 - extents.x_bearing(),
-                label_y - extents.height() / 2.0 - extents.y_bearing(),
-            );
-            let _ = cr.show_text(&label);
-        }
+        cr.set_source_rgba(0.0, 0.0, 0.0, 0.35);
+        cr.set_line_width(1.5);
+        let _ = cr.stroke();
     }
 
-    // middle of the ring: the colour that is currently selected
-    let current = state.current.borrow();
-    cr.new_path();
-    cr.arc(cx, cy, INNER_RADIUS - 8.0, 0.0, 2.0 * PI);
-    cr.set_source_rgba(
-        f64::from(current.red()),
-        f64::from(current.green()),
-        f64::from(current.blue()),
-        f64::from(current.alpha()),
-    );
-    let _ = cr.fill_preserve();
-    cr.set_source_rgba(0.0, 0.0, 0.0, 0.7);
-    cr.set_line_width(2.0);
-    let _ = cr.stroke();
+    // ... then the outline of the selected one on top, so it overlaps both neighbours equally
+    if let Some(index) = active.filter(|index| *index < colors.len().min(SLICES)) {
+        let (start, end) = slice_angles(index);
+        slice_path(cr, center, INNER_RADIUS, outer_radius_of(index), start, end);
+        cr.set_source_rgba(0.0, 0.0, 0.0, 0.8);
+        cr.set_line_width(7.0);
+        let _ = cr.stroke_preserve();
+        cr.set_source_rgb(1.0, 1.0, 1.0);
+        cr.set_line_width(3.5);
+        let _ = cr.stroke();
+    }
 }

@@ -531,11 +531,48 @@ impl RnSettingsPanel {
             });
     }
 
+    /// rnote-mod: adds a "Pie Menu" group with an opacity row directly below the "General" group.
+    /// The value is saved in the app settings ("pie-menu-opacity") and used the next time the menu opens.
+    fn init_pie_menu_group(&self, appwindow: &RnAppWindow) {
+        let imp = self.imp();
+
+        let Some(general_group) = imp
+            .general_autosave_row
+            .get()
+            .ancestor(adw::PreferencesGroup::static_type())
+        else {
+            return;
+        };
+        let Some(container) = general_group.parent().and_downcast::<gtk4::Box>() else {
+            return;
+        };
+        let Some(app_settings) = appwindow.app().app_settings() else {
+            return;
+        };
+
+        let opacity_row = adw::SpinRow::builder()
+            .title(gettext("Pie Menu Opacity"))
+            .subtitle(gettext("Opacity of the colour pie menu that opens with Space"))
+            .adjustment(&gtk4::Adjustment::new(0.5, 0.1, 1.0, 0.05, 0.1, 0.0))
+            .digits(2)
+            .build();
+        app_settings
+            .bind("pie-menu-opacity", &opacity_row, "value")
+            .build();
+
+        let group = adw::PreferencesGroup::builder()
+            .title(gettext("Pie Menu"))
+            .build();
+        group.add(&opacity_row);
+        container.insert_child_after(&group, Some(&general_group));
+    }
+
     pub(crate) fn init(&self, appwindow: &RnAppWindow) {
         self.setup_general(appwindow);
         self.setup_format(appwindow);
         self.setup_doc(appwindow);
         self.setup_shortcuts(appwindow);
+        self.init_pie_menu_group(appwindow);
     }
 
     fn setup_general(&self, appwindow: &RnAppWindow) {

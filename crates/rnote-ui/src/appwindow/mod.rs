@@ -400,6 +400,12 @@ impl RnAppWindow {
         let overlay = overlays.toolbar_overlay();
         let colorpicker = overlays.colorpicker();
 
+        // saved in the app settings, changed in the settings panel
+        let opacity = self
+            .app()
+            .app_settings()
+            .map_or(0.5, |settings| settings.double("pie-menu-opacity"));
+
         pie_menu.open(
             pointer,
             (f64::from(overlay.width()), f64::from(overlay.height())),
@@ -409,7 +415,7 @@ impl RnAppWindow {
                 .map(|setter| setter.color())
                 .collect(),
             colorpicker.current_setter_index(),
-            colorpicker.active_pad_color(),
+            opacity,
         );
     }
 

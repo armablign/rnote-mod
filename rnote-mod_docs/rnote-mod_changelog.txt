@@ -8,8 +8,55 @@
 
 
 ---------------------------------------------------------------------
+ rnote-mod_v1-5        2026-10-13
+ STATUS: SOURCE READY - type-checked; settings schema validated and pie geometry rendered offline;
+         NOT yet tried in the app
+---------------------------------------------------------------------
+ Pie menu polish (feedback on v1-4), saved opacity setting, and the program rename.
+
+ PIE MENU
+  - Slice numbers removed from the ring (the number keys 1-9 still pick a colour while the menu is open).
+  - Centre circle (current colour) removed.
+  - Slice corners are rounded (8 px).
+  - The outline of the selected colour is drawn after all slices, so it overlaps both neighbours
+    equally (in v1-4 the next slice painted over it, which looked lopsided).
+  - Opacity: slices are 50% opaque by default. Configurable and SAVED: Settings panel -> new "Pie Menu"
+    group (right below "General") -> "Pie Menu Opacity", 0.10 - 1.00. It is applied the next time the
+    menu opens. The faint dimming of the page behind the menu is unchanged.
+
+ PROGRAM RENAME (rnote.exe -> rnote-mod.exe)
+  - The installed program is now bin\rnote-mod.exe. It is still BUILT as rnote.exe and only renamed
+    when installing, so nothing inside the app depends on the file name.
+  - Rnote-Mod is registered under its own Windows key (Applications\rnote-mod.exe) with the display
+    name "Rnote-Mod" for the "Open with" list, so it no longer looks identical to the original Rnote.
+    The original Rnote's registration is not touched.
+  - Upgrading from v1-4 or earlier: the installer deletes the old bin\rnote.exe and re-creates the
+    Start menu / desktop shortcuts. A taskbar pin that points at the old rnote.exe must be pinned again.
+  - Anything that matched on the process name rnote.exe (old AutoHotkey rules) no longer matches the mod.
+
+ Changes:
+  1. crates/rnote-ui/src/piemenu.rs               rounded slices, no labels / centre, opacity, outline order
+  2. crates/rnote-ui/src/appwindow/mod.rs         reads the saved opacity when opening the menu
+  3. crates/rnote-ui/src/settingspanel/mod.rs     "Pie Menu" group built in code (SpinRow bound to the setting)
+  4. crates/rnote-ui/data/app.gschema.xml.in      new saved setting pie-menu-opacity (default 0.5, range 0.1-1.0)
+  5. build-aux/rnote_inno.iss.in                  installed exe name, Applications key, InstallDelete, v1-5 label
+  6. .github/workflows/build-rnote-mod.yml        default build label -> v1-5
+  7. rnote-mod_docs/                              changelog + project map v1-5
+
+ Verification: UI crate type-checks; the new schema passes glib-compile-schemas --strict; the slice
+ geometry was rendered offline and looks right. NOT done: running the app, and the Windows installer
+ changes (they cannot be run here). If the Open-with list still shows two entries named "Rnote",
+ tell me what each shows and I will adjust the registration.
+
+
+---------------------------------------------------------------------
  rnote-mod_v1-4        2026-10-13
- STATUS: SOURCE READY - type-checked in the sandbox, NOT yet tried in the app
+ STATUS: BUILT on GitHub and tested by user (first run hit a temporary MSYS2 download error in
+         "Prerequisites"; a plain re-run passed)
+ Tested OK: Shift+` / Ctrl+` cycle and wrap both ways; strokes use the new colour; the pie opens at the
+ cursor and at the hovering pen position, moves inward near screen edges; Esc and a click outside close it;
+ pen click on a slice / outside works like the mouse; text tool: Space, Q, T, G, E type normally.
+ Note: the number keys 1-9 only pick a colour WHILE the pie menu is open (by design).
 ---------------------------------------------------------------------
  FEATURE 6: palette colour cycling (standalone keybind).
    Shift+`  ->  next palette colour      (1 -> 2 -> ... -> 9 -> 1)
