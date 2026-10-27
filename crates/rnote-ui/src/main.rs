@@ -26,8 +26,13 @@ pub(crate) mod iconpicker;
 pub(crate) mod mainheader;
 pub(crate) mod overlays;
 pub(crate) mod penpicker;
+pub(crate) mod diagnostics;
 pub(crate) mod penssidebar;
 pub(crate) mod piemenu;
+
+/// rnote-mod: counts the bytes held by the Rust side of the app (see `diagnostics`)
+#[global_allocator]
+static GLOBAL_ALLOCATOR: diagnostics::CountingAllocator = diagnostics::CountingAllocator;
 pub(crate) mod settingspanel;
 pub(crate) mod sidebar;
 pub(crate) mod strokecontentpaintable;

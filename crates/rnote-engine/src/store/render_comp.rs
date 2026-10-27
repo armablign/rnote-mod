@@ -241,6 +241,7 @@ impl StrokeStore {
         viewport: Aabb,
         image_scale: f64,
     ) {
+        let scan_start = std::time::Instant::now();
         let keys = self.render_components.keys().collect::<Vec<StrokeKey>>();
 
         for key in keys {
@@ -294,8 +295,17 @@ impl StrokeStore {
                 let stroke = stroke.clone();
 
                 // Spawn a new thread for image rendering
-                rayon::spawn(
-                    move || match stroke.gen_images(viewport_extended, image_scale) {
+                crate::diagnostics::bump(&crate::diagnostics::RENDER_JOBS_STARTED);
+                rayon::spawn(move || {
+                    let render_start = std::time::Instant::now();
+                    let generated = stroke.gen_images(viewport_extended, image_scale);
+                    crate::diagnostics::add_elapsed(
+                        &crate::diagnostics::RENDER_NANOS,
+                        render_start,
+                    );
+                    crate::diagnostics::bump(&crate::diagnostics::RENDER_JOBS_FINISHED);
+
+                    match generated {
                         Ok(images) => {
                             tasks_tx.send(EngineTask::UpdateStrokeWithImages {
                                 key,
@@ -308,10 +318,13 @@ impl StrokeStore {
                                 "Generating stroke images failed stroke while regenerating rendering in viewport `{viewport:?}`, stroke key: {key:?}, Err: {e:?}"
                             );
                         }
-                    },
-                );
+                    }
+                });
             }
         }
+
+        crate::diagnostics::bump(&crate::diagnostics::VIEWPORT_SCANS);
+        crate::diagnostics::add_elapsed(&crate::diagnostics::VIEWPORT_SCAN_NANOS, scan_start);
     }
 
     /// Clear all rendering for all strokes.

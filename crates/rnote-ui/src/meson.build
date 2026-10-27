@@ -55,6 +55,7 @@ rnote_ui_sources = files(
     'colorpicker/mod.rs',
     'config.rs',
     'contextmenu.rs',
+    'diagnostics.rs',
     'dialogs/export.rs',
     'dialogs/import.rs',
     'dialogs/mod.rs',

@@ -237,7 +237,13 @@ mod imp {
 
                     loop {
                         if let Some(task) = task_rx.recv().await {
-                            let (widget_flags, quit) = canvas.engine_mut().handle_engine_task(task);
+                            let task_start = std::time::Instant::now();
+                    let (widget_flags, quit) = canvas.engine_mut().handle_engine_task(task);
+                    rnote_engine::diagnostics::bump(&rnote_engine::diagnostics::ENGINE_TASKS);
+                    rnote_engine::diagnostics::add_elapsed(
+                        &rnote_engine::diagnostics::ENGINE_TASK_NANOS,
+                        task_start,
+                    );
                             canvas.emit_handle_widget_flags(widget_flags);
 
                             if quit {

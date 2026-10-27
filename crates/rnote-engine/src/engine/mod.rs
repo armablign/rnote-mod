@@ -913,3 +913,25 @@ impl Engine {
             .current_pen_style_w_override(&engine_view!(self))
     }
 }
+
+impl Engine {
+    /// rnote-mod: numbers for the performance diagnostics log.
+    pub fn diagnostics(&self) -> crate::diagnostics::EngineDiagnostics {
+        #[allow(unused_mut)]
+        let mut diagnostics = crate::diagnostics::EngineDiagnostics {
+            zoom: self.camera.total_zoom(),
+            store: self.store.diagnostics(),
+            background_tile_bytes: self
+                .background_tile_image
+                .as_ref()
+                .map_or(0, |image| image.data.len()),
+            background_rendernodes: 0,
+        };
+        #[cfg(feature = "ui")]
+        {
+            diagnostics.background_rendernodes = self.background_rendernodes.len();
+        }
+
+        diagnostics
+    }
+}

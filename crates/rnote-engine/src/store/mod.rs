@@ -369,3 +369,33 @@ impl StrokeStore {
         widget_flags
     }
 }
+
+impl StrokeStore {
+    /// rnote-mod: numbers for the performance diagnostics log.
+    pub fn diagnostics(&self) -> crate::diagnostics::StoreDiagnostics {
+        let mut diagnostics = crate::diagnostics::StoreDiagnostics {
+            strokes: self.stroke_components.len(),
+            strokes_trashed: self.trashed_keys_unordered().len(),
+            history_len: self.history.len(),
+            ..Default::default()
+        };
+
+        for (_key, render_comp) in self.render_components.iter() {
+            if !render_comp.images.is_empty() {
+                diagnostics.strokes_holding_images += 1;
+            }
+            diagnostics.images += render_comp.images.len();
+            diagnostics.image_bytes += render_comp
+                .images
+                .iter()
+                .map(|image| image.data.len())
+                .sum::<usize>();
+            #[cfg(feature = "ui")]
+            {
+                diagnostics.rendernodes += render_comp.rendernodes.len();
+            }
+        }
+
+        diagnostics
+    }
+}

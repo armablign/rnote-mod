@@ -218,6 +218,7 @@ impl RnAppWindow {
         self.setup_actions();
         self.setup_action_accels();
         self.setup_plain_key_shortcuts();
+        crate::diagnostics::start(self);
 
         if !self.app().settings_schema_found() {
             // Display an error toast if settings schema could not be found
@@ -371,8 +372,27 @@ impl RnAppWindow {
             return glib::Propagation::Stop;
         }
 
+        // W = next brush size preset. Only while the brush is the active tool; otherwise W does nothing.
+        if key.to_lower() == gdk::Key::w {
+            if self.window_key_shortcuts_blocked(true) {
+                return glib::Propagation::Proceed;
+            }
+            let Some(canvas) = self.active_tab_canvas() else {
+                return glib::Propagation::Proceed;
+            };
+            if canvas.engine_ref().current_pen_style_w_override() != PenStyle::Brush {
+                return glib::Propagation::Proceed;
+            }
+            self.overlays()
+                .penssidebar()
+                .brush_page()
+                .stroke_width_picker()
+                .cycle_setters();
+            return glib::Propagation::Stop;
+        }
+
         // Q / G / E / T = tool shortcuts. They go through the existing "pen-style" action, the same path
-        // as Ctrl+1..6, so pressing the key of the active tool again cycles (selector mode, shape, brush size).
+        // as Ctrl+1..6, so pressing the key of the active tool again cycles (selector mode, shape).
         let pen_style = match key.to_lower() {
             gdk::Key::q => "brush",
             gdk::Key::g => "shaper",

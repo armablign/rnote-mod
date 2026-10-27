@@ -351,15 +351,6 @@ impl RnAppWindow {
                         .penssidebar()
                         .shaper_page()
                         .cycle_shapebuildertype(&appwindow);
-                } else if pen_style == PenStyle::Brush {
-                    // rnote-mod: the brush shortcut was pressed while the brush is already active
-                    // -> activate the next of the three stroke width presets.
-                    appwindow
-                        .overlays()
-                        .penssidebar()
-                        .brush_page()
-                        .stroke_width_picker()
-                        .cycle_setters();
                 }
                 action.set_state(&pen_style_str.to_variant());
             }

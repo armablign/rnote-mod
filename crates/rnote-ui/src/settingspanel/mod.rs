@@ -567,12 +567,70 @@ impl RnSettingsPanel {
         container.insert_child_after(&group, Some(&general_group));
     }
 
+    /// rnote-mod: adds a "Diagnostics" group below the "General" group: a switch for the performance
+    /// log and the folder the log files are written to.
+    fn init_diagnostics_group(&self, appwindow: &RnAppWindow) {
+        let imp = self.imp();
+
+        let Some(general_group) = imp
+            .general_autosave_row
+            .get()
+            .ancestor(adw::PreferencesGroup::static_type())
+        else {
+            return;
+        };
+        let Some(container) = general_group.parent().and_downcast::<gtk4::Box>() else {
+            return;
+        };
+        let Some(app_settings) = appwindow.app().app_settings() else {
+            return;
+        };
+
+        let log_row = adw::SwitchRow::builder()
+            .title(gettext("Log Performance Diagnostics"))
+            .subtitle(gettext(
+                "Writes memory and rendering numbers (no note content) to a file every 15 seconds",
+            ))
+            .build();
+        app_settings
+            .bind("diagnostics-logging", &log_row, "active")
+            .build();
+
+        let folder = crate::diagnostics::log_dir();
+        let folder_row = adw::ActionRow::builder()
+            .title(gettext("Log Folder"))
+            .subtitle(folder.display().to_string())
+            .subtitle_selectable(true)
+            .build();
+        let open_button = gtk4::Button::builder()
+            .label(gettext("Open"))
+            .valign(gtk4::Align::Center)
+            .build();
+        open_button.connect_clicked(move |_| {
+            let _ = std::fs::create_dir_all(&folder);
+            let uri = gtk4::gio::File::for_path(&folder).uri();
+            let _ = gtk4::gio::AppInfo::launch_default_for_uri(
+                &uri,
+                None::<&gtk4::gio::AppLaunchContext>,
+            );
+        });
+        folder_row.add_suffix(&open_button);
+
+        let group = adw::PreferencesGroup::builder()
+            .title(gettext("Diagnostics"))
+            .build();
+        group.add(&log_row);
+        group.add(&folder_row);
+        container.insert_child_after(&group, Some(&general_group));
+    }
+
     pub(crate) fn init(&self, appwindow: &RnAppWindow) {
         self.setup_general(appwindow);
         self.setup_format(appwindow);
         self.setup_doc(appwindow);
         self.setup_shortcuts(appwindow);
         self.init_pie_menu_group(appwindow);
+        self.init_diagnostics_group(appwindow);
     }
 
     fn setup_general(&self, appwindow: &RnAppWindow) {

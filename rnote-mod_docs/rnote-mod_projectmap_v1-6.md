@@ -1,8 +1,8 @@
-# rnote-mod — Project Map (v1-5)
+# rnote-mod — Project Map (v1-6)
 
 Base: **Rnote 0.14.2** (GPL-3.0-or-later). Rust edition 2024, min rustc 1.89.
 Re-upload the latest `rnote-mod-SourceFiles_vX-Y-Z.zip` in a new session: it contains the source, this map and the changelog.
-Status: v1-0-1 builds and runs; v1-1 (Feature 1, selector cycling) built and works. v1-2 (Feature 3, plain-key shortcuts) built and works. v1-3 (Feature 5, shape + brush-preset cycling) built and works. v1-4 (colour cycling Shift+`/Ctrl+` + colour pie menu on Space) built, tested, works. v1-5 = pie polish + saved opacity setting + exe renamed to rnote-mod.exe, awaiting a real-app test.
+Status: v1-0-1 builds and runs; v1-1 (Feature 1, selector cycling) built and works. v1-2 (Feature 3, plain-key shortcuts) built and works. v1-3 (Feature 5, shape + brush-preset cycling) built and works. v1-4 (colour cycling Shift+`/Ctrl+` + colour pie menu on Space) built, tested, works. v1-5 (pie polish, opacity setting, exe renamed to rnote-mod.exe) built and installed. v1-6 = W brush-preset key + performance diagnostics log, awaiting a real-app test.
 
 ## 1. Workspace (4 crates, ~54k lines of Rust)
 | Crate | Role |
@@ -120,3 +120,17 @@ with 3 decimals. Each `.rnote` file also stores its own document style; the pres
 Built as `rnote.exe` (meson `ui_output`), INSTALLED as `bin\rnote-mod.exe` via Inno `DestName` / `MyInstalledExeName` (v1-5). Own `Applications\rnote-mod.exe`
 registration (FriendlyAppName), `[InstallDelete]` removes the old `bin\rnote.exe` on upgrade. Do not rename meson `app_name` (it feeds `app_idpath`,
 the hardcoded UI resource prefix).
+
+## 11. Performance / battery investigation (v1-6)
+User goal: lower battery drain on campus. Findings from his Windows Performance Monitor log (19 Oct, 9 min, empty-ish canvas): idle CPU ~1%; active
+20-50% of one core, peaks 70-86% while dragging; Private Bytes 162 MB -> 1.19 GB in ~4.5 min of draw/undo/redo, flat while idle (never returns), +280 MB when
+dragging; handles flat ~3000. Code facts: undo history entries hold only stroke geometry (Arc-shared, capped at 100), NOT render images; strokes are rasterised on
+the CPU by Cairo/piet in rayon jobs, one job + one image + one GPU texture node per stroke in the extended viewport; images of strokes outside the viewport are
+freed; `regenerate_rendering_in_viewport_threaded` scans EVERY stroke on each call and is called on every selection-drag pointer move
+(`pens/selector/penevents.rs`); selection drags move cached images (`translate_strokes_images`), they do not re-render; zoom is debounced (`zoom_w_timeout`).
+Release profile is already fat-LTO / opt-level 3 (it also ships debug info). Laptop has Intel iGPU + NVIDIA dGPU: Windows Graphics settings "Power saving" for
+`rnote-mod.exe` is a no-code test. Diagnostics log: `rnote-ui/src/diagnostics.rs` (counting `#[global_allocator]` wrapper over System + 15 s CSV logger, folder
+`%LOCALAPPDATA%\rnote-mod\diagnostics`, setting `diagnostics-logging`) and `rnote-engine/src/diagnostics.rs` (atomic counters bumped in
+`store/render_comp.rs` and `canvas/mod.rs`). Image bytes are `glib::Bytes` (may live outside the Rust allocator), so they are logged separately as `image_mb`.
+Developer mode (main menu toggle `win.devel-mode`) reveals "Developer Menu": Visual Debugging overlay (document / stroke / image bounds, dirty and busy render
+state colours, stroke-count statistics box) and two debug exports (engine state, engine config). W key = brush preset cycle (`handle_window_key_shortcut`).

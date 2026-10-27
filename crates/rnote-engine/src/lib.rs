@@ -12,6 +12,7 @@
 #[cfg(feature = "ui")]
 pub mod audioplayer;
 pub mod camera;
+pub mod diagnostics;
 pub mod document;
 pub mod drawable;
 pub mod engine;

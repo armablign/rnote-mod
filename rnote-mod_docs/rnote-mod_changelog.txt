@@ -8,9 +8,66 @@
 
 
 ---------------------------------------------------------------------
+ rnote-mod_v1-6        2026-10-27
+ STATUS: SOURCE READY - type-checked (UI crate and the command-line tool); allocator counting and
+         CSV column count verified in a standalone test; settings schema validated;
+         NOT yet run in the app
+---------------------------------------------------------------------
+ W KEY: next brush size preset.
+  - W cycles the three brush size presets, ONLY while the Brush is the active tool. With any other
+    tool active (or the text tool, a dialog, a text field) W does nothing.
+  - Q and Ctrl+1 now only SELECT the brush; they no longer cycle the presets.
+  - The shape cycle (G / Ctrl+2) and selector cycle (T / Ctrl+5) are unchanged.
+
+ PERFORMANCE DIAGNOSTICS LOG (to find where memory and battery go)
+  - Every 15 seconds one row is appended to a CSV file; a new file is started each time the app
+    starts (and when the switch below is turned off and on again).
+  - Folder:  %LOCALAPPDATA%\rnote-mod\diagnostics\   (C:\Users\<you>\AppData\Local\rnote-mod\diagnostics\)
+    File:    rnote-mod_v1-6_diagnostics_<date>_<time>.csv
+    Settings panel -> new "Diagnostics" group (below General): a switch "Log Performance
+    Diagnostics" (default ON in this build) and the folder path with an "Open" button.
+  - Numbers only: no note content, no file names.
+  - Columns:
+      time, window_active (1 = window focused), zoom,
+      rust_heap_mb      bytes currently held by the Rust side of the app (own allocator counter)
+      allocs_per_s      memory allocations per second (change since the previous row)
+      strokes, strokes_trashed, strokes_holding_images
+      images, image_mb  rendered stroke images kept in RAM (count, size)
+      rendernodes       GPU-side render objects of those strokes
+      background_tile_mb, background_rendernodes   page background (grid/lines) rendering
+      history_len       undo steps held
+      viewport_scans, viewport_scan_ms          how often the "which strokes need rendering" scan ran,
+                                                and how long it took (all since the previous row)
+      render_jobs_started, render_jobs_finished, render_cpu_ms   stroke drawing jobs and the CPU time they used
+      engine_tasks, engine_task_ms              finished jobs handled on the main thread, and the time that took
+  - Compare with the Windows performance log (Private Bytes) over the same time: the gap between
+    Private Bytes and rust_heap_mb + image_mb is memory held outside the Rust side (GTK, the graphics
+    driver, textures).
+  - Cost: one timer wake-up per 15 s plus a small counter on every memory allocation. Negligible,
+    but turn the switch off when not investigating.
+
+ Changes:
+  1. crates/rnote-ui/src/appwindow/mod.rs     W key; logger started from init()
+  2. crates/rnote-ui/src/appwindow/actions.rs brush no longer cycles in the pen-style action
+  3. crates/rnote-ui/src/diagnostics.rs       NEW  counting allocator + CSV logger
+  4. crates/rnote-engine/src/diagnostics.rs   NEW  counters and snapshot structs
+  5. crates/rnote-engine/src/store/mod.rs, engine/mod.rs   diagnostics() snapshots
+  6. crates/rnote-engine/src/store/render_comp.rs          render scan / render job counters
+  7. crates/rnote-ui/src/canvas/mod.rs        times the main-thread handling of finished jobs
+  8. crates/rnote-ui/src/settingspanel/mod.rs "Diagnostics" group built in code
+  9. crates/rnote-ui/data/app.gschema.xml.in  new saved setting diagnostics-logging (default true)
+ 10. crates/rnote-ui/src/main.rs, src/meson.build, rnote-engine/src/lib.rs   register the new modules
+ 11. build-aux/rnote_inno.iss.in, .github/workflows/build-rnote-mod.yml     label -> v1-6
+ 12. rnote-mod_docs/                          changelog + project map v1-6
+
+ Verification: UI crate and command-line tool type-check; counting allocator tested in a standalone
+ program (exact through allocate / grow / shrink / free); header and row both have 21 columns; schema
+ passes glib-compile-schemas --strict. NOT done: running the app and the Windows installer.
+
+
+---------------------------------------------------------------------
  rnote-mod_v1-5        2026-10-13
- STATUS: SOURCE READY - type-checked; settings schema validated and pie geometry rendered offline;
-         NOT yet tried in the app
+ STATUS: BUILT on GitHub and installed (renamed rnote-mod.exe is running); no problems reported
 ---------------------------------------------------------------------
  Pie menu polish (feedback on v1-4), saved opacity setting, and the program rename.
 
@@ -301,9 +358,11 @@
 ---------------------------------------------------------------------
  PLANNED (not decided / not started)
 ---------------------------------------------------------------------
- undecided        Undo history cap 100 -> ~30 (awaiting your OK)
- later            Pen-button (HID) handling inside the mod, to replace AutoHotkey
- later            Feature 4 (RAM/lag): after Task Manager measurements
+ next             Read the diagnostics logs, then pick the optimisation (e.g. limit render jobs,
+                  throttle the viewport scan during drags, memory release, memory allocator)
+ later            Pen-button handling inside the mod (pan-mode toggle) to replace AutoHotkey
+                  (needs: XPPen driver button options, raw report log)
+ later            Turn the diagnostics logging default OFF once the investigation is done
 
 
 ---------------------------------------------------------------------
